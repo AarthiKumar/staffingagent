@@ -1,0 +1,13 @@
+[
+  {
+    "query": "Senior DevOps engineer with Kubernetes and AWS experience",
+    "filters": {
+      "required_skills": ["kubernetes", "aws"],
+      "min_years": {
+        "kubernetes": 2,
+        "aws": 3
+      }
+    },
+    "relevant_candidate_ids": []
+  }
+]

@@ -1,0 +1,25 @@
+agent_id: staffing
+ranking:
+  weights:
+    cosine: 0.55
+    skills: 0.25
+    cert: 0.10
+    recency: 0.10
+filters:
+  default_min_years: {}
+llm:
+  provider: ${LLM_PROVIDER}
+  rerank:
+    enabled: ${ENABLE_LLM_RERANK}
+    top_k: 50
+    timeout_ms: 700
+  nl_assist:
+    enabled: ${ENABLE_NL_ASSIST}
+budgets:
+  monthly_usd: 150.0
+ontology:
+  skills_csv: ./config/skills.csv
+  aliases_csv: ./config/aliases.csv
+  certs_csv: ./config/certs.csv
+storage:
+  originals_bucket: ${MINIO_BUCKET}
