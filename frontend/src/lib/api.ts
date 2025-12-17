@@ -3,6 +3,9 @@ import {
   SearchResponse,
   CandidateDetail,
   AvailabilityRecord,
+  CandidateListResponse,
+  CandidateFullDetail,
+  CandidateUpdate,
 } from './types';
 import { API_BASE_URL } from './config';
 
@@ -137,6 +140,41 @@ class APIClient {
       };
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async listCandidates(
+    page: number = 1,
+    pageSize: number = 50,
+    search?: string
+  ): Promise<CandidateListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    if (search) {
+      params.append('search', search);
+    }
+    return this.request<CandidateListResponse>(`/candidates/?${params.toString()}`);
+  }
+
+  async getCandidateFull(candidateId: string): Promise<CandidateFullDetail> {
+    return this.request<CandidateFullDetail>(`/candidates/${candidateId}`);
+  }
+
+  async updateCandidate(
+    candidateId: string,
+    data: CandidateUpdate
+  ): Promise<{
+    id: string;
+    name: string;
+    email?: string;
+    location?: string;
+    updated_at: string;
+  }> {
+    return this.request(`/candidates/${candidateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 }

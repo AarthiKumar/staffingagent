@@ -77,3 +77,54 @@ export interface AvailabilityRecord {
   capacity_pct: number;
   notes?: string;
 }
+
+export interface CandidateListItem {
+  id: string;
+  name: string;
+  email?: string;
+  location?: string;
+  updated_at: string;
+  document_filename?: string;
+  availability_from?: string;
+  capacity_pct?: number;
+}
+
+export interface CandidateListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  candidates: CandidateListItem[];
+}
+
+export interface SectionDetail {
+  id: string;
+  type: string;
+  text: string;
+}
+
+export interface AvailabilityDetail {
+  id: string;
+  available_from: string;
+  capacity_pct: number;
+  notes?: string;
+  updated_at: string;
+}
+
+export interface CandidateFullDetail {
+  id: string;
+  name: string;
+  email?: string;
+  location?: string;
+  updated_at: string;
+  document_id: string;
+  document_filename?: string;
+  document_mime_type?: string;
+  availability: AvailabilityDetail[];
+  sections: SectionDetail[];
+}
+
+export interface CandidateUpdate {
+  name?: string;
+  email?: string;
+  location?: string;
+}

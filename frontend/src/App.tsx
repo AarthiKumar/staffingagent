@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Search } from './routes/Search';
-import { CandidateDetail } from './routes/CandidateDetail';
+import CandidateDetail from './routes/CandidateDetail';
+import Candidates from './routes/Candidates';
 import { Availability } from './routes/Availability';
 import { UploadCV } from './routes/UploadCV';
 import { AgentSwitcher } from './components/AgentSwitcher';
@@ -39,6 +40,12 @@ function App() {
                       Search
                     </Link>
                     <Link
+                      to="/candidates"
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Candidates
+                    </Link>
+                    <Link
                       to="/upload"
                       className="text-sm text-gray-600 hover:text-gray-900"
                     >
@@ -62,6 +69,8 @@ function App() {
 
           <Routes>
             <Route path="/" element={<Search />} />
+            <Route path="/candidates" element={<Candidates />} />
+            <Route path="/candidates/:id" element={<CandidateDetail />} />
             <Route path="/upload" element={<UploadCV />} />
             <Route path="/candidate/:id" element={<CandidateDetail />} />
             <Route path="/availability" element={<Availability />} />
