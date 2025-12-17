@@ -94,6 +94,51 @@ class APIClient {
       body: JSON.stringify({ agent_id: agentId, text }),
     });
   }
+
+  async uploadCV(
+    file: File,
+    agentId: string = 'staffing',
+    useOCR: boolean = false
+  ): Promise<{
+    document_id: string;
+    candidate_id: string;
+    sections_count: number;
+    embeddings_count: number;
+  }> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64Content = btoa(
+            new Uint8Array(e.target?.result as ArrayBuffer)
+              .reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+
+          const response = await this.request<{
+            document_id: string;
+            candidate_id: string;
+            sections_count: number;
+            embeddings_count: number;
+          }>('/ingest/', {
+            method: 'POST',
+            body: JSON.stringify({
+              agent_id: agentId,
+              document_type: 'resume',
+              filename: file.name,
+              content_base64: base64Content,
+              use_ocr: useOCR,
+            }),
+          });
+
+          resolve(response);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
 }
 
 export const apiClient = new APIClient(API_BASE_URL);

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Search } from './routes/Search';
 import { CandidateDetail } from './routes/CandidateDetail';
 import { Availability } from './routes/Availability';
+import { UploadCV } from './routes/UploadCV';
 import { AgentSwitcher } from './components/AgentSwitcher';
 import { DEFAULT_AGENT_ID } from './lib/config';
 
@@ -38,6 +39,12 @@ function App() {
                       Search
                     </Link>
                     <Link
+                      to="/upload"
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Upload CVs
+                    </Link>
+                    <Link
                       to="/availability"
                       className="text-sm text-gray-600 hover:text-gray-900"
                     >
@@ -55,6 +62,7 @@ function App() {
 
           <Routes>
             <Route path="/" element={<Search />} />
+            <Route path="/upload" element={<UploadCV />} />
             <Route path="/candidate/:id" element={<CandidateDetail />} />
             <Route path="/availability" element={<Availability />} />
           </Routes>
