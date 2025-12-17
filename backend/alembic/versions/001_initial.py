@@ -65,7 +65,7 @@ def upgrade() -> None:
         sa.Column('agent_id', sa.String(255), nullable=False, index=True),
         sa.Column('model', sa.String(255), nullable=False),
         sa.Column('dim', sa.Integer(), nullable=False),
-        sa.Column('vector', Vector(dim=None), nullable=False),
+        sa.Column('vector', Vector(dim=3072), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
 
