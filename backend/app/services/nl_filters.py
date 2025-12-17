@@ -17,6 +17,28 @@ class NLFiltersService:
         self.config = AgentConfig(agent_id)
         self.enabled = self.config.get("llm.nl_assist.enabled", False)
         self.timeout_ms = 600
+        self._openai_client = None
+
+        if self.enabled and settings.llm_provider == "openai":
+            self._init_openai_client()
+
+    def _init_openai_client(self):
+        """Initialize OpenAI client"""
+        if not settings.llm_api_key:
+            logger.warning("OpenAI API key not configured, NL assist will be disabled")
+            self.enabled = False
+            return
+
+        try:
+            from openai import OpenAI
+            self._openai_client = OpenAI(
+                api_key=settings.llm_api_key,
+                timeout=self.timeout_ms / 1000.0  # Convert to seconds
+            )
+            logger.info("OpenAI client initialized for NL filters")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {e}")
+            self.enabled = False
 
     def parse(self, text: str) -> Dict[str, Any]:
         """Parse natural language text into filters"""
@@ -49,19 +71,97 @@ class NLFiltersService:
 
     def _call_llm_parse(self, text: str) -> Dict[str, Any]:
         """Call LLM to parse text into filters"""
-        # This is a stub implementation
-        # In production, call actual LLM API with constrained JSON output
-
         provider = settings.llm_provider
 
         if provider == "disabled":
             raise ValueError("LLM provider disabled")
 
-        # TODO: Implement actual LLM API calls
-        # For now, return basic keyword extraction
-        logger.warning("LLM NL parse not implemented, using fallback")
+        if provider == "openai":
+            return self._call_openai_parse(text)
+        else:
+            logger.warning(f"Unsupported LLM provider: {provider}, using fallback")
+            return self._fallback_parse(text)
 
-        return self._fallback_parse(text)
+    def _call_openai_parse(self, text: str) -> Dict[str, Any]:
+        """Call OpenAI API to parse natural language into structured filters"""
+        if not self._openai_client:
+            raise RuntimeError("OpenAI client not initialized")
+
+        # Build prompt for filter extraction
+        prompt = self._build_filter_prompt(text)
+
+        try:
+            response = self._openai_client.chat.completions.create(
+                model="gpt-4o-mini",  # Fast and cost-effective for parsing
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert at parsing job requirements and candidate search queries. Extract structured filters from natural language text. Return ONLY a JSON object with the extracted filters."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,  # Low temperature for consistent parsing
+            )
+
+            # Parse response
+            result_text = response.choices[0].message.content
+            result_json = json.loads(result_text)
+
+            # Extract filters - expect {"filters": {...}, "warnings": [...]}
+            if "filters" in result_json:
+                return {
+                    "filters": result_json["filters"],
+                    "warnings": result_json.get("warnings", [])
+                }
+            else:
+                logger.warning("OpenAI response missing 'filters' key")
+                return {"filters": {}, "warnings": ["Invalid LLM response format"]}
+
+        except Exception as e:
+            logger.error(f"OpenAI parse call failed: {e}")
+            raise
+
+    def _build_filter_prompt(self, text: str) -> str:
+        """Build prompt for filter extraction"""
+        prompt = f"""Parse the following search query or job requirements into structured filters:
+
+Query: "{text}"
+
+Extract the following information if present:
+1. **required_skills**: List of technical skills, technologies, or tools mentioned (e.g., ["python", "docker", "aws"])
+2. **min_years**: Minimum years of experience per skill as a dictionary (e.g., {{"python": 5, "aws": 3}})
+3. **location**: Geographic location or remote preference (e.g., "San Francisco" or "Remote")
+4. **certifications**: Required certifications (e.g., ["AWS Certified", "PMP"])
+5. **job_title**: Specific job titles or roles (e.g., "Senior Software Engineer")
+6. **education**: Education requirements (e.g., "Bachelor's in Computer Science")
+
+Return your response as a JSON object with this structure:
+{{
+  "filters": {{
+    "required_skills": ["skill1", "skill2"],
+    "min_years": {{"skill1": 3, "skill2": 5}},
+    "location": "location string",
+    "certifications": ["cert1"],
+    "job_title": "title",
+    "education": "education requirement"
+  }},
+  "warnings": ["any warnings about ambiguous or missing information"]
+}}
+
+IMPORTANT:
+- Only include fields where you found relevant information
+- Skills should be lowercase and standardized (e.g., "javascript" not "JavaScript" or "JS")
+- Be conservative - only extract information you're confident about
+- If years of experience are mentioned generally (e.g., "5+ years experience"), apply to all mentioned skills
+- Return empty warnings array if no warnings
+
+Your response:"""
+
+        return prompt
 
     def _fallback_parse(self, text: str) -> Dict[str, Any]:
         """Fallback keyword-based parsing"""

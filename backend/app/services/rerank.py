@@ -19,6 +19,28 @@ class RerankService:
         self.config = AgentConfig(agent_id)
         self.timeout_ms = self.config.get("llm.rerank.timeout_ms", 700)
         self.enabled = self.config.get("llm.rerank.enabled", False)
+        self._openai_client = None
+
+        if self.enabled and settings.llm_provider == "openai":
+            self._init_openai_client()
+
+    def _init_openai_client(self):
+        """Initialize OpenAI client"""
+        if not settings.llm_api_key:
+            logger.warning("OpenAI API key not configured, reranking will be disabled")
+            self.enabled = False
+            return
+
+        try:
+            from openai import OpenAI
+            self._openai_client = OpenAI(
+                api_key=settings.llm_api_key,
+                timeout=self.timeout_ms / 1000.0  # Convert to seconds
+            )
+            logger.info("OpenAI client initialized for reranking")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {e}")
+            self.enabled = False
 
     def rerank(
         self,
@@ -37,6 +59,9 @@ class RerankService:
 
             # Build structured evidence (no full CVs, no emails)
             evidence = self._build_evidence(results, filters)
+
+            if not evidence:
+                return results, False
 
             # Call LLM with timeout
             reranked_order = self._call_llm_rerank(query, evidence)
@@ -84,18 +109,90 @@ class RerankService:
 
     def _call_llm_rerank(self, query: str, evidence: List[Dict[str, Any]]) -> List[int]:
         """Call LLM API to get reranked order"""
-        # This is a stub implementation
-        # In production, call actual LLM API (OpenAI, Anthropic, etc.)
-
         provider = settings.llm_provider
 
         if provider == "disabled":
             raise ValueError("LLM provider disabled")
 
-        # TODO: Implement actual LLM API calls
-        # For now, return original order
-        logger.warning("LLM rerank not implemented, returning original order")
-        return list(range(len(evidence)))
+        if provider == "openai":
+            return self._call_openai_rerank(query, evidence)
+        else:
+            logger.warning(f"Unsupported LLM provider: {provider}, returning original order")
+            return list(range(len(evidence)))
+
+    def _call_openai_rerank(self, query: str, evidence: List[Dict[str, Any]]) -> List[int]:
+        """Call OpenAI API to rerank candidates"""
+        if not self._openai_client:
+            raise RuntimeError("OpenAI client not initialized")
+
+        # Build prompt for reranking
+        prompt = self._build_rerank_prompt(query, evidence)
+
+        try:
+            response = self._openai_client.chat.completions.create(
+                model="gpt-4o-mini",  # Fast and cost-effective for reranking
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert technical recruiter. Analyze candidates and rerank them based on how well they match the search query and requirements. Return ONLY a JSON array of candidate ranks in order of best match to worst match."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,  # Low temperature for consistent ranking
+            )
+
+            # Parse response
+            result_text = response.choices[0].message.content
+            result_json = json.loads(result_text)
+
+            # Extract ranking - expect {"ranking": [1, 3, 2, ...]}
+            if "ranking" in result_json:
+                ranking = result_json["ranking"]
+                # Convert from 1-indexed to 0-indexed
+                return [r - 1 for r in ranking if isinstance(r, int) and 1 <= r <= len(evidence)]
+            else:
+                logger.warning("OpenAI response missing 'ranking' key")
+                return list(range(len(evidence)))
+
+        except Exception as e:
+            logger.error(f"OpenAI rerank call failed: {e}")
+            raise
+
+    def _build_rerank_prompt(self, query: str, evidence: List[Dict[str, Any]]) -> str:
+        """Build prompt for reranking"""
+        candidates_text = "\n\n".join([
+            f"Candidate {c['rank']}:\n"
+            f"- Location: {c['location']}\n"
+            f"- Matched Skills: {', '.join(c['matched_skills']) if c['matched_skills'] else 'None'}\n"
+            f"- Matched Certifications: {', '.join(c['matched_certs']) if c['matched_certs'] else 'None'}\n"
+            f"- Experience Snippets: {' | '.join(c['snippets']) if c['snippets'] else 'None'}\n"
+            f"- Current Score: {c['score']:.3f}"
+            for c in evidence
+        ])
+
+        prompt = f"""Search Query: "{query}"
+
+Candidates to rank:
+{candidates_text}
+
+Task: Rerank these {len(evidence)} candidates based on how well they match the search query. Consider:
+1. Relevance of skills to the query
+2. Quality and depth of experience
+3. Certifications that demonstrate expertise
+4. Overall fit for the role described in the query
+
+Return your ranking as a JSON object with a "ranking" array containing the candidate numbers in order from best match to worst match.
+
+Example response format:
+{{"ranking": [3, 1, 5, 2, 4]}}
+
+Your ranking:"""
+
+        return prompt
 
     def _apply_reranking(self, results: List[Dict[str, Any]], reranked_order: List[int]) -> List[Dict[str, Any]]:
         """Apply reranked order to results"""
