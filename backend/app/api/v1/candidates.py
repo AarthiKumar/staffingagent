@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.logging import get_logger
 from app.db.session import get_db
@@ -89,8 +89,8 @@ def list_candidates(
 ):
     """List all candidates with pagination and optional search"""
 
-    # Build base query
-    query = db.query(Candidate).join(Document)
+    # Build base query with eager loading of document
+    query = db.query(Candidate).options(joinedload(Candidate.document))
 
     # Apply search filter
     if search:
@@ -147,7 +147,12 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid candidate ID format")
 
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_uuid).first()
+    candidate = (
+        db.query(Candidate)
+        .options(joinedload(Candidate.document))
+        .filter(Candidate.id == candidate_uuid)
+        .first()
+    )
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -218,7 +223,12 @@ def update_candidate(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid candidate ID format")
 
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_uuid).first()
+    candidate = (
+        db.query(Candidate)
+        .options(joinedload(Candidate.document))
+        .filter(Candidate.id == candidate_uuid)
+        .first()
+    )
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
