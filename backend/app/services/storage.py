@@ -1,4 +1,5 @@
 """Storage service for document originals"""
+import io
 import os
 from pathlib import Path
 from typing import Optional
@@ -47,10 +48,12 @@ class StorageService:
         key = f"{sha256[:2]}/{sha256}"
         if self.use_minio:
             try:
+                # Wrap bytes in BytesIO for MinIO
+                data_stream = io.BytesIO(content)
                 self.client.put_object(
                     settings.minio_bucket,
                     key,
-                    data=content,
+                    data=data_stream,
                     length=len(content),
                     content_type=mime_type,
                 )
