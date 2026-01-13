@@ -30,7 +30,13 @@ class EmbeddingsService:
             from sentence_transformers import SentenceTransformer
 
             logger.info(f"Loading local embeddings model: {self.model}")
-            self._encoder = SentenceTransformer(self.model)
+            # Explicitly set device to 'cpu' to avoid PyTorch meta tensor issues
+            # trust_remote_code=True allows loading newer model architectures
+            self._encoder = SentenceTransformer(
+                self.model,
+                device='cpu',
+                trust_remote_code=True
+            )
             logger.info(f"Model loaded successfully, dimension: {self._encoder.get_sentence_embedding_dimension()}")
         except Exception as e:
             logger.error(f"Failed to load embeddings model: {e}")
