@@ -24,36 +24,45 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="min-h-screen bg-gray-50">
-          <nav className="bg-white border-b border-gray-200">
-            <div className="container mx-auto px-4 py-4">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+          {/* Modern Navigation Bar */}
+          <nav className="bg-white shadow-sm border-b border-gray-200">
+            <div className="container mx-auto px-6 py-4">
               <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-8">
-                  <Link to="/" className="text-xl font-bold text-gray-900">
-                    Staffing Agent
+                <div className="flex items-center space-x-10">
+                  {/* Logo/Brand */}
+                  <Link to="/" className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">SA</span>
+                    </div>
+                    <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                      Staffing Agent
+                    </span>
                   </Link>
-                  <div className="flex space-x-4">
+
+                  {/* Navigation Links */}
+                  <div className="flex space-x-1">
                     <Link
                       to="/"
-                      className="text-sm text-gray-600 hover:text-gray-900"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       Search
                     </Link>
                     <Link
                       to="/candidates"
-                      className="text-sm text-gray-600 hover:text-gray-900"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       Candidates
                     </Link>
                     <Link
                       to="/upload"
-                      className="text-sm text-gray-600 hover:text-gray-900"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       Upload CVs
                     </Link>
                     <Link
                       to="/availability"
-                      className="text-sm text-gray-600 hover:text-gray-900"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       Availability
                     </Link>

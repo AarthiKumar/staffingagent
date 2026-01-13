@@ -83,9 +83,9 @@ export default function CandidateDetail() {
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Loading candidate details...</p>
+        <div className="text-center py-16 bg-white rounded-xl shadow-sm">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading candidate details...</p>
         </div>
       </div>
     );
@@ -94,10 +94,13 @@ export default function CandidateDetail() {
   if (error || !candidate) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          Error loading candidate: {error?.message || 'Candidate not found'}
+        <div className="bg-red-50 border border-red-300 text-red-700 px-6 py-4 rounded-lg shadow-sm">
+          <p className="font-medium">Error loading candidate: {error?.message || 'Candidate not found'}</p>
         </div>
-        <Button onClick={() => navigate('/candidates')} className="mt-4">
+        <Button
+          onClick={() => navigate('/candidates')}
+          className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+        >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Candidates
         </Button>
@@ -113,7 +116,7 @@ export default function CandidateDetail() {
           variant="outline"
           size="sm"
           onClick={() => navigate('/candidates')}
-          className="mb-4"
+          className="mb-4 border-gray-300 hover:bg-gray-50"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Candidates
@@ -121,26 +124,37 @@ export default function CandidateDetail() {
 
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
               {isEditing ? 'Edit Candidate' : 'Candidate Details'}
             </h1>
             <p className="text-gray-600">
               Last updated: {new Date(candidate.updated_at).toLocaleString()}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {!isEditing ? (
-              <Button onClick={handleEdit}>
+              <Button
+                onClick={handleEdit}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
             ) : (
               <>
-                <Button onClick={handleSave} disabled={updateMutation.isPending}>
+                <Button
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                >
                   <Save className="h-4 w-4 mr-2" />
                   {updateMutation.isPending ? 'Saving...' : 'Save'}
                 </Button>
-                <Button variant="outline" onClick={handleCancel}>
+                <Button
+                  variant="outline"
+                  onClick={handleCancel}
+                  className="border-gray-300 hover:bg-gray-50"
+                >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
@@ -161,14 +175,16 @@ export default function CandidateDetail() {
         {/* Left Column - Basic Info */}
         <div className="lg:col-span-1 space-y-6">
           {/* Basic Information Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-5 pb-3 border-b border-gray-200">
+              Basic Information
+            </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Name */}
               <div>
-                <Label htmlFor="name" className="flex items-center mb-2">
-                  <User className="h-4 w-4 mr-2 text-gray-500" />
+                <Label htmlFor="name" className="flex items-center mb-2 text-sm font-medium text-gray-700">
+                  <User className="h-4 w-4 mr-2 text-blue-500" />
                   Name
                 </Label>
                 {isEditing ? (
@@ -179,16 +195,17 @@ export default function CandidateDetail() {
                       setEditedData({ ...editedData, name: e.target.value })
                     }
                     placeholder="Full name"
+                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{candidate.name}</p>
+                  <p className="text-gray-900 font-medium">{candidate.name}</p>
                 )}
               </div>
 
               {/* Email */}
               <div>
-                <Label htmlFor="email" className="flex items-center mb-2">
-                  <Mail className="h-4 w-4 mr-2 text-gray-500" />
+                <Label htmlFor="email" className="flex items-center mb-2 text-sm font-medium text-gray-700">
+                  <Mail className="h-4 w-4 mr-2 text-blue-500" />
                   Email
                 </Label>
                 {isEditing ? (
@@ -200,6 +217,7 @@ export default function CandidateDetail() {
                       setEditedData({ ...editedData, email: e.target.value })
                     }
                     placeholder="email@example.com"
+                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
                 ) : (
                   <p className="text-gray-900">{candidate.email || '-'}</p>
@@ -208,8 +226,8 @@ export default function CandidateDetail() {
 
               {/* Location */}
               <div>
-                <Label htmlFor="location" className="flex items-center mb-2">
-                  <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                <Label htmlFor="location" className="flex items-center mb-2 text-sm font-medium text-gray-700">
+                  <MapPin className="h-4 w-4 mr-2 text-blue-500" />
                   Location
                 </Label>
                 {isEditing ? (
@@ -220,6 +238,7 @@ export default function CandidateDetail() {
                       setEditedData({ ...editedData, location: e.target.value })
                     }
                     placeholder="City, Country"
+                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
                 ) : (
                   <p className="text-gray-900">{candidate.location || '-'}</p>
@@ -229,30 +248,32 @@ export default function CandidateDetail() {
           </div>
 
           {/* Document Info Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <FileText className="h-5 w-5 mr-2" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-5 pb-3 border-b border-gray-200 flex items-center">
+              <FileText className="h-5 w-5 mr-2 text-blue-500" />
               Document
             </h2>
-            <div className="space-y-2 text-sm">
-              <p>
-                <span className="font-medium">Filename:</span>{' '}
-                {candidate.document_filename || 'N/A'}
-              </p>
-              <p>
-                <span className="font-medium">Type:</span>{' '}
-                {candidate.document_mime_type || 'N/A'}
-              </p>
-              <p className="text-xs text-gray-500 mt-2">
-                Document ID: {candidate.document_id}
-              </p>
+            <div className="space-y-3">
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-600">Filename:</span>
+                <span className="text-sm text-gray-900 text-right ml-2">{candidate.document_filename || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-600">Type:</span>
+                <span className="text-sm text-gray-900">{candidate.document_mime_type || 'N/A'}</span>
+              </div>
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-500">
+                  ID: {candidate.document_id}
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Availability Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-5 pb-3 border-b border-gray-200 flex items-center">
+              <Calendar className="h-5 w-5 mr-2 text-blue-500" />
               Availability
             </h2>
             {candidate.availability.length > 0 ? (
@@ -260,18 +281,18 @@ export default function CandidateDetail() {
                 {candidate.availability.map((avail) => (
                   <div
                     key={avail.id}
-                    className="border border-gray-200 rounded p-3"
+                    className="border border-blue-100 bg-blue-50/30 rounded-lg p-4"
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-900">
                         {new Date(avail.available_from).toLocaleDateString()}
                       </span>
-                      <span className="text-sm text-gray-600">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         {avail.capacity_pct}% capacity
                       </span>
                     </div>
                     {avail.notes && (
-                      <p className="text-xs text-gray-500 mt-1">{avail.notes}</p>
+                      <p className="text-xs text-gray-600 mt-1">{avail.notes}</p>
                     )}
                   </div>
                 ))}
@@ -282,7 +303,7 @@ export default function CandidateDetail() {
             <Button
               variant="outline"
               size="sm"
-              className="mt-4 w-full"
+              className="mt-4 w-full border-blue-200 text-blue-600 hover:bg-blue-50"
               onClick={() => navigate('/availability')}
             >
               Manage Availability
@@ -292,21 +313,22 @@ export default function CandidateDetail() {
 
         {/* Right Column - CV Sections */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Briefcase className="h-5 w-5 mr-2" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-5 pb-3 border-b border-gray-200 flex items-center">
+              <Briefcase className="h-5 w-5 mr-2 text-blue-500" />
               CV Sections
             </h2>
 
             {candidate.sections.length > 0 ? (
               <div className="space-y-6">
                 {candidate.sections.map((section) => (
-                  <div key={section.id} className="border-b border-gray-200 pb-6 last:border-b-0">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2 capitalize">
+                  <div key={section.id} className="border-b border-gray-100 pb-6 last:border-b-0">
+                    <h3 className="text-base font-semibold text-gray-900 mb-3 capitalize flex items-center">
+                      <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                       {section.type.replace('_', ' ')}
                     </h3>
-                    <div className="bg-gray-50 rounded p-4">
-                      <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
+                    <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-lg p-4 border border-gray-100">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
                         {section.text}
                       </pre>
                     </div>
