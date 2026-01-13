@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.logging import get_logger
@@ -162,13 +162,13 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
         .filter(Section.document_id == candidate.document_id)
         .order_by(
             # Custom order: summary, skills, experience, certifications, full, others
-            func.case(
+            case(
                 (Section.type == "summary", 1),
                 (Section.type == "skills", 2),
                 (Section.type == "experience", 3),
                 (Section.type == "certifications", 4),
                 (Section.type == "full", 5),
-                else_value=6,
+                else_=6,
             )
         )
         .all()
