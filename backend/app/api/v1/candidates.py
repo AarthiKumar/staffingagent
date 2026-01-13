@@ -168,7 +168,7 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
                 (Section.type == "experience", 3),
                 (Section.type == "certifications", 4),
                 (Section.type == "full", 5),
-                else_=6,
+                else_value=6,
             )
         )
         .all()
