@@ -9,6 +9,7 @@ from pdfminer.high_level import extract_text as extract_pdf_text
 
 from app.core.logging import get_logger
 from app.services.ocr import ocr_service
+from app.services.llm_extraction import get_llm_extraction_service
 
 logger = get_logger(__name__)
 
@@ -25,7 +26,28 @@ class ResumeParser:
             logger.warning("Extracted text too short or empty")
             return self._empty_result()
 
-        # Parse structured sections
+        # Try LLM extraction first for consistent data extraction
+        llm_service = get_llm_extraction_service()
+        if llm_service.enabled:
+            try:
+                logger.info("Attempting LLM-based CV extraction")
+                llm_parsed = llm_service.extract_cv_data(text)
+
+                # Validate LLM extraction - ensure we got meaningful data
+                if (llm_parsed.get("name") and llm_parsed.get("name") != "Unknown" and
+                    (llm_parsed.get("skills") or llm_parsed.get("experience"))):
+                    # LLM extraction successful, use it
+                    llm_parsed["raw_text"] = text
+                    logger.info(f"LLM extraction successful for: {llm_parsed.get('name')}")
+                    return llm_parsed
+                else:
+                    logger.warning("LLM extraction returned insufficient data, falling back to regex")
+            except Exception as e:
+                logger.warning(f"LLM extraction failed, falling back to regex: {e}")
+        else:
+            logger.info("LLM extraction disabled, using regex-based extraction")
+
+        # Fallback: Parse structured sections using regex
         parsed = {
             "summary": self._extract_summary(text),
             "skills": self._extract_skills(text),
