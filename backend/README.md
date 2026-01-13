@@ -51,6 +51,26 @@ To use OpenAI embeddings:
 
 ## LLM Features
 
+### CV Data Extraction
+
+When `LLM_PROVIDER=openai` and `LLM_API_KEY` is set:
+- **Automatic extraction** of structured data from all uploaded CVs
+- Ensures **consistent extraction** across all documents:
+  - Basic Information: Name, Email, Location
+  - Professional Summary
+  - Skills (as keywords)
+  - Work Experience (with organization, role, dates, and bullet points)
+  - Certifications (as keywords)
+- Uses GPT-4o-mini for fast, cost-effective extraction
+- Falls back to regex-based extraction if LLM is disabled or fails
+- Test with: `python scripts/test_llm_extraction.py`
+
+**Benefits:**
+- More accurate than regex-based extraction
+- Handles various CV formats and layouts consistently
+- Extracts structured data suitable for semantic search
+- Better extraction of context and relationships
+
 ### Re-ranking
 
 When `ENABLE_LLM_RERANK=true`:
