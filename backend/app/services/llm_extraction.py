@@ -88,6 +88,7 @@ IMPORTANT INSTRUCTIONS:
 1. For Basic Information:
    - Extract the candidate's full name (usually at the top)
    - Extract email address (look for @ symbol)
+   - Extract phone number (various formats: (123) 456-7890, +1-123-456-7890, etc.)
    - Extract location (city, state/country)
 
 2. For Summary:
@@ -143,6 +144,7 @@ Return a JSON object with this EXACT structure:
 {{
   "name": "Full Name",
   "email": "email@example.com or null",
+  "phone": "phone number or null",
   "location": "City, State/Country or null",
   "summary": "Professional summary (2-3 sentences)",
   "skills": ["skill1", "skill2", "skill3"],
@@ -172,6 +174,7 @@ IMPORTANT:
         normalized = {
             "name": str(data.get("name", "Unknown")).strip() or "Unknown",
             "email": data.get("email"),
+            "phone": data.get("phone"),
             "location": data.get("location"),
             "summary": str(data.get("summary", "")).strip(),
             "skills": [],
@@ -185,6 +188,12 @@ IMPORTANT:
             normalized["email"] = str(normalized["email"]).strip().lower()
         else:
             normalized["email"] = None
+
+        # Normalize phone
+        if normalized["phone"] and normalized["phone"] != "null":
+            normalized["phone"] = str(normalized["phone"]).strip()
+        else:
+            normalized["phone"] = None
 
         # Normalize location
         if normalized["location"] and normalized["location"] != "null":
@@ -247,6 +256,7 @@ IMPORTANT:
         return {
             "name": "Unknown",
             "email": None,
+            "phone": None,
             "location": None,
             "summary": "",
             "skills": [],

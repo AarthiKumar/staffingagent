@@ -56,6 +56,7 @@ class ResumeParser:
             "certifications": self._extract_certifications(text),
             "name": self._extract_name(text),
             "email": self._extract_email(text),
+            "phone": self._extract_phone(text),
             "location": self._extract_location(text),
             "raw_text": text,
         }
@@ -66,8 +67,15 @@ class ResumeParser:
         """Extract text from document based on mime type"""
         try:
             if "pdf" in mime_type.lower():
-                text = extract_pdf_text(io.BytesIO(content))
-                # If text is too short and OCR is enabled, try OCR
+                # Try pdfplumber first for better multi-column layout handling
+                text = self._extract_pdf_with_pdfplumber(content)
+
+                # Fallback to pdfminer if pdfplumber fails or returns too little text
+                if not text or len(text.strip()) < 100:
+                    logger.info("pdfplumber extraction insufficient, trying pdfminer")
+                    text = extract_pdf_text(io.BytesIO(content))
+
+                # If text is still too short and OCR is enabled, try OCR
                 if use_ocr and len(text.strip()) < 100 and ocr_service.available:
                     logger.info("PDF text too short, attempting OCR")
                     ocr_text = ocr_service.extract_text_from_pdf(content)
@@ -84,6 +92,27 @@ class ResumeParser:
                 return content.decode("utf-8", errors="ignore")
         except Exception as e:
             logger.error(f"Text extraction failed: {e}")
+            return ""
+
+    def _extract_pdf_with_pdfplumber(self, content: bytes) -> str:
+        """Extract text from PDF using pdfplumber for better layout handling"""
+        try:
+            import pdfplumber
+
+            text_parts = []
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                for page in pdf.pages:
+                    # Extract text with layout preservation
+                    page_text = page.extract_text(layout=True)
+                    if page_text:
+                        text_parts.append(page_text)
+
+            return "\n\n".join(text_parts)
+        except ImportError:
+            logger.warning("pdfplumber not installed, falling back to pdfminer")
+            return ""
+        except Exception as e:
+            logger.warning(f"pdfplumber extraction failed: {e}")
             return ""
 
     def _extract_summary(self, text: str) -> str:
@@ -269,6 +298,21 @@ class ResumeParser:
             return match.group(0)
         return None
 
+    def _extract_phone(self, text: str) -> Optional[str]:
+        """Extract phone number"""
+        # Common phone number patterns
+        patterns = [
+            r"\+?1?\s*\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})",  # US format: (123) 456-7890, 123-456-7890, +1 123 456 7890
+            r"\+?\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}",  # International formats
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                # Return the full matched phone number
+                return match.group(0).strip()
+        return None
+
     def _extract_location(self, text: str) -> Optional[str]:
         """Extract location"""
         # Look for city, state patterns
@@ -287,6 +331,7 @@ class ResumeParser:
             "certifications": [],
             "name": "Unknown",
             "email": None,
+            "phone": None,
             "location": None,
             "raw_text": "",
         }
