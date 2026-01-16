@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Agent, Candidate, Document, Embedding, Section
+from app.services.document_conversion import conversion_service
 from app.services.embeddings import get_embeddings_service
 from app.services.normalize import get_normalize_service
 from app.services.parsing.parser_registry import parser_registry
@@ -79,10 +80,23 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
     mime_type = _guess_mime_type(req.filename)
     storage_key = storage_service.store(sha256, content, mime_type)
 
+    # Convert Word documents to PDF for better multi-column handling
+    content_for_parsing = content
+    mime_for_parsing = mime_type
+    if mime_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
+        logger.info(f"Converting Word document to PDF: {req.filename}")
+        pdf_content = conversion_service.word_to_pdf(content, mime_type)
+        if pdf_content:
+            content_for_parsing = pdf_content
+            mime_for_parsing = "application/pdf"
+            logger.info(f"Successfully converted to PDF ({len(pdf_content)} bytes)")
+        else:
+            logger.warning("Word to PDF conversion failed, using original content")
+
     # Parse document
     try:
         parser = parser_registry.get(req.document_type)
-        parsed = parser.parse(content, mime_type, req.use_ocr)
+        parsed = parser.parse(content_for_parsing, mime_for_parsing, req.use_ocr)
     except Exception as e:
         logger.error(f"Parsing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Parsing failed: {e}")
@@ -119,6 +133,7 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
         document_id=doc.id,
         name=parsed.get("name", "Unknown"),
         email=parsed.get("email"),
+        phone=parsed.get("phone"),
         location=parsed.get("location"),
     )
     db.add(candidate)
