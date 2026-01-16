@@ -7,12 +7,14 @@ Usage:
     python scripts/test_embeddings.py
 """
 
+import os
 import sys
 from pathlib import Path
 
-# Add backend to path
+# Add backend to path and change to backend directory
 backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
+os.chdir(str(backend_path))
 
 print("=" * 80)
 print("Testing Embeddings Model Loading")
