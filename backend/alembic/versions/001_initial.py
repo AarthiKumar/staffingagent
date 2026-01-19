@@ -150,10 +150,18 @@ def upgrade() -> None:
         sa.Column('zero_result', sa.Boolean(), default=False, nullable=False),
     )
 
-    # Create IVFFlat index on embeddings.vector (supports dimensions > 2000, unlike HNSW which has 2000 dim limit)
-    # IVFFlat with lists=100 is suitable for moderate-sized datasets
-    # For production, consider adjusting lists based on expected row count (typically sqrt(row_count))
-    op.execute('CREATE INDEX idx_embeddings_ivfflat ON embeddings USING ivfflat (vector vector_cosine_ops) WITH (lists = 100)')
+    # NOTE: Vector index creation is skipped in initial migration
+    # Both HNSW and IVFFlat indexes in pgvector have a 2000 dimension limit
+    #
+    # If using embeddings with ≤2000 dimensions (e.g., text-embedding-3-small with 1536 dims),
+    # you can manually create an index for better performance:
+    #   CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (vector vector_cosine_ops);
+    # OR
+    #   CREATE INDEX idx_embeddings_ivfflat ON embeddings USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
+    #
+    # If using text-embedding-3-large (3072 dims), the system will work without an index,
+    # but vector similarity searches will use sequential scans (slower for large datasets).
+    # Consider using text-embedding-3-small (1536 dims) for better performance with indexing.
 
 
 def downgrade() -> None:
