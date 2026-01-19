@@ -150,8 +150,10 @@ def upgrade() -> None:
         sa.Column('zero_result', sa.Boolean(), default=False, nullable=False),
     )
 
-    # Create HNSW index on embeddings.vector
-    op.execute('CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (vector vector_cosine_ops)')
+    # Create IVFFlat index on embeddings.vector (supports dimensions > 2000, unlike HNSW which has 2000 dim limit)
+    # IVFFlat with lists=100 is suitable for moderate-sized datasets
+    # For production, consider adjusting lists based on expected row count (typically sqrt(row_count))
+    op.execute('CREATE INDEX idx_embeddings_ivfflat ON embeddings USING ivfflat (vector vector_cosine_ops) WITH (lists = 100)')
 
 
 def downgrade() -> None:
