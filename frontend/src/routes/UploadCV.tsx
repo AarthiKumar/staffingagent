@@ -25,7 +25,7 @@ export function UploadCV() {
   const navigate = useNavigate();
   const [uploads, setUploads] = useState<UploadResult[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [useOCR, setUseOCR] = useState(false);
+  const [useOCR, setUseOCR] = useState(true);
 
   // Manual input dialog state
   const [manualInputDialog, setManualInputDialog] = useState<{
