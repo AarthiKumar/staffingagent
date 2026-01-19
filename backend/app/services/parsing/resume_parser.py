@@ -1,8 +1,9 @@
 """Resume parser implementation"""
 import io
 import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 import docx
 from pdfminer.high_level import extract_text as extract_pdf_text
@@ -12,6 +13,26 @@ from app.services.ocr import ocr_service
 from app.services.llm_extraction import get_llm_extraction_service
 
 logger = get_logger(__name__)
+
+T = TypeVar('T')
+
+
+class TimeoutException(Exception):
+    """Exception raised when operation times out"""
+    pass
+
+
+def run_with_timeout(func: Callable[[], T], timeout_seconds: int) -> Optional[T]:
+    """Run a function with a timeout, works on all platforms"""
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func)
+            return future.result(timeout=timeout_seconds)
+    except FuturesTimeoutError:
+        raise TimeoutException(f"Operation timed out after {timeout_seconds} seconds")
+    except Exception as e:
+        logger.error(f"Function execution failed: {e}")
+        raise
 
 
 class ResumeParser:
@@ -67,20 +88,56 @@ class ResumeParser:
         """Extract text from document based on mime type"""
         try:
             if "pdf" in mime_type.lower():
-                # Try pdfplumber first for better multi-column layout handling
-                text = self._extract_pdf_with_pdfplumber(content)
+                text = ""
+
+                # Try pdfplumber first for better multi-column layout handling (with timeout)
+                try:
+                    logger.info("Attempting pdfplumber extraction with 30s timeout")
+                    text = run_with_timeout(
+                        lambda: self._extract_pdf_with_pdfplumber(content),
+                        timeout_seconds=30
+                    )
+                    if not text:
+                        text = ""
+                except TimeoutException:
+                    logger.warning("pdfplumber extraction timed out after 30s, skipping to pdfminer")
+                    text = ""
+                except Exception as e:
+                    logger.warning(f"pdfplumber extraction failed: {e}")
+                    text = ""
 
                 # Fallback to pdfminer if pdfplumber fails or returns too little text
                 if not text or len(text.strip()) < 100:
-                    logger.info("pdfplumber extraction insufficient, trying pdfminer")
-                    text = extract_pdf_text(io.BytesIO(content))
+                    logger.info("pdfplumber extraction insufficient, trying pdfminer with 30s timeout")
+                    try:
+                        text = run_with_timeout(
+                            lambda: extract_pdf_text(io.BytesIO(content)),
+                            timeout_seconds=30
+                        )
+                        if not text:
+                            text = ""
+                    except TimeoutException:
+                        logger.warning("pdfminer extraction timed out after 30s")
+                        text = ""
+                    except Exception as e:
+                        logger.warning(f"pdfminer extraction failed: {e}")
+                        text = ""
 
                 # If text is still too short and OCR is enabled, try OCR
                 if use_ocr and len(text.strip()) < 100 and ocr_service.available:
-                    logger.info("PDF text too short, attempting OCR")
-                    ocr_text = ocr_service.extract_text_from_pdf(content)
-                    if ocr_text:
-                        text = ocr_text
+                    logger.info("PDF text too short, attempting OCR with 60s timeout")
+                    try:
+                        ocr_text = run_with_timeout(
+                            lambda: ocr_service.extract_text_from_pdf(content),
+                            timeout_seconds=60
+                        )
+                        if ocr_text:
+                            text = ocr_text
+                    except TimeoutException:
+                        logger.warning("OCR extraction timed out after 60s")
+                    except Exception as e:
+                        logger.warning(f"OCR extraction failed: {e}")
+
                 return text
             elif "word" in mime_type.lower() or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 doc = docx.Document(io.BytesIO(content))
@@ -101,11 +158,19 @@ class ResumeParser:
 
             text_parts = []
             with pdfplumber.open(io.BytesIO(content)) as pdf:
-                for page in pdf.pages:
-                    # Extract text with layout preservation
-                    page_text = page.extract_text(layout=True)
-                    if page_text:
-                        text_parts.append(page_text)
+                # Limit to first 20 pages to prevent extremely long processing times
+                max_pages = min(len(pdf.pages), 20)
+                logger.info(f"Processing {max_pages} pages with pdfplumber")
+
+                for i, page in enumerate(pdf.pages[:max_pages]):
+                    try:
+                        # Extract text with layout preservation
+                        page_text = page.extract_text(layout=True)
+                        if page_text:
+                            text_parts.append(page_text)
+                    except Exception as e:
+                        logger.warning(f"Failed to extract page {i+1}: {e}")
+                        continue
 
             return "\n\n".join(text_parts)
         except ImportError:
