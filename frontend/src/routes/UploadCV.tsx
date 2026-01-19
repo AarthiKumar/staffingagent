@@ -419,20 +419,22 @@ export function UploadCV() {
                           <div className="ml-3">{getStatusBadge(upload.status)}</div>
                         </div>
 
-                        {upload.status === 'success' && upload.candidate_id && (
+                        {upload.status === 'success' && (
                           <div className="mt-3 space-y-2">
                             <div className="text-xs text-gray-600">
                               <div>✓ {upload.sections_count} sections extracted</div>
                               <div>✓ {upload.embeddings_count} embeddings created</div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(`/candidate/${upload.candidate_id}`)}
-                              className="w-full"
-                            >
-                              View Candidate
-                            </Button>
+                            {upload.candidate_id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/candidate/${upload.candidate_id}`)}
+                                className="w-full"
+                              >
+                                View Candidate
+                              </Button>
+                            )}
                           </div>
                         )}
 
