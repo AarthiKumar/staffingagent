@@ -73,13 +73,11 @@ export function MergeApprovalDialog({
     field,
     existing,
     newValue,
-    suggested,
   }: {
     label: string;
     field: string;
     existing: string | null;
     newValue: string | null;
-    suggested: string | null;
   }) => {
     const hasConflict = isConflict(field);
 
@@ -172,7 +170,6 @@ export function MergeApprovalDialog({
               field="name"
               existing={mergeProposal.existing_data.name}
               newValue={mergeProposal.new_data.name}
-              suggested={mergeProposal.suggested_merge.name}
             />
 
             <ComparisonRow
@@ -180,7 +177,6 @@ export function MergeApprovalDialog({
               field="email"
               existing={mergeProposal.existing_data.email}
               newValue={mergeProposal.new_data.email}
-              suggested={mergeProposal.suggested_merge.email}
             />
 
             <ComparisonRow
@@ -188,7 +184,6 @@ export function MergeApprovalDialog({
               field="phone"
               existing={mergeProposal.existing_data.phone}
               newValue={mergeProposal.new_data.phone}
-              suggested={mergeProposal.suggested_merge.phone}
             />
 
             <ComparisonRow
@@ -196,7 +191,6 @@ export function MergeApprovalDialog({
               field="location"
               existing={mergeProposal.existing_data.location}
               newValue={mergeProposal.new_data.location}
-              suggested={mergeProposal.suggested_merge.location}
             />
           </div>
 
