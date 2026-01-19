@@ -419,7 +419,7 @@ export function UploadCV() {
                           <div className="ml-3">{getStatusBadge(upload.status)}</div>
                         </div>
 
-                        {upload.status === 'success' && (
+                        {upload.status === 'success' && upload.candidate_id && (
                           <div className="mt-3 space-y-2">
                             <div className="text-xs text-gray-600">
                               <div>✓ {upload.sections_count} sections extracted</div>
