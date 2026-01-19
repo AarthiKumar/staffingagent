@@ -101,12 +101,21 @@ class APIClient {
   async uploadCV(
     file: File,
     agentId: string = 'staffing',
-    useOCR: boolean = false
+    useOCR: boolean = false,
+    manualData?: {
+      manual_name?: string;
+      manual_email?: string;
+      manual_phone?: string;
+    }
   ): Promise<{
     document_id: string;
-    candidate_id: string;
+    candidate_id: string | null;
     sections_count: number;
     embeddings_count: number;
+    missing_required_fields?: string[];
+    requires_manual_input?: boolean;
+    merge_proposal?: any;
+    requires_approval?: boolean;
   }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -119,9 +128,13 @@ class APIClient {
 
           const response = await this.request<{
             document_id: string;
-            candidate_id: string;
+            candidate_id: string | null;
             sections_count: number;
             embeddings_count: number;
+            missing_required_fields?: string[];
+            requires_manual_input?: boolean;
+            merge_proposal?: any;
+            requires_approval?: boolean;
           }>('/ingest/', {
             method: 'POST',
             body: JSON.stringify({
@@ -130,6 +143,7 @@ class APIClient {
               filename: file.name,
               content_base64: base64Content,
               use_ocr: useOCR,
+              ...manualData,
             }),
           });
 
@@ -140,6 +154,30 @@ class APIClient {
       };
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async approveMerge(
+    candidateId: string,
+    newDocumentId: string,
+    approvedData: {
+      name: string;
+      email?: string | null;
+      phone?: string | null;
+      location?: string | null;
+    }
+  ): Promise<{
+    success: boolean;
+    candidate_id: string;
+    message: string;
+  }> {
+    return this.request('/ingest/approve-merge', {
+      method: 'POST',
+      body: JSON.stringify({
+        candidate_id: candidateId,
+        new_document_id: newDocumentId,
+        approved_data: approvedData,
+      }),
     });
   }
 
