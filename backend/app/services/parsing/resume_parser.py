@@ -43,19 +43,32 @@ class ResumeParser:
 
     def parse(self, content: bytes, mime_type: str, use_ocr: bool = False) -> dict:
         """Parse resume and extract structured information"""
+        logger.info(f"Starting CV parsing - mime_type: {mime_type}, use_ocr: {use_ocr}")
+
         # Extract raw text
         text = self._extract_text(content, mime_type, use_ocr)
+        logger.info(f"Primary text extraction: {len(text) if text else 0} characters")
+
         llm_text = self._extract_text_for_llm(content, mime_type, text)
+        logger.info(f"Layout-aware text extraction: {len(llm_text) if llm_text else 0} characters")
 
         if (not text or len(text.strip()) < 50) and llm_text and len(llm_text.strip()) >= 50:
             logger.info("Primary extraction was short; using layout-aware text instead")
             text = llm_text
 
         if not text or len(text.strip()) < 50:
-            logger.warning("Extracted text too short or empty")
+            logger.warning(f"Extracted text too short or empty: {len(text) if text else 0} chars")
             return self._empty_result()
 
+        # Log text preview for debugging
+        preview = text[:200].replace('\n', ' ')
+        logger.info(f"Text preview: {preview}...")
+
+        # Regex parsing
+        logger.info("Performing regex-based extraction")
         regex_parsed = self._parse_with_regex(text)
+        logger.info(f"Regex extracted - Name: {regex_parsed.get('name')}, Email: {regex_parsed.get('email')}, "
+                   f"Skills: {len(regex_parsed.get('skills', []))}, Experience: {len(regex_parsed.get('experience', []))}")
 
         # Try LLM extraction first for consistent data extraction
         llm_service = get_llm_extraction_service()
@@ -64,14 +77,31 @@ class ResumeParser:
             try:
                 logger.info("Attempting LLM-based CV extraction")
                 llm_parsed = self._extract_llm_with_chunking(llm_service, llm_text or text)
-                logger.info(f"LLM extraction completed for: {llm_parsed.get('name', 'Unknown')}")
+                logger.info(f"LLM extraction completed - Name: {llm_parsed.get('name', 'Unknown')}, "
+                           f"Email: {llm_parsed.get('email')}, Skills: {len(llm_parsed.get('skills', []))}, "
+                           f"Experience: {len(llm_parsed.get('experience', []))}")
             except Exception as e:
                 logger.warning(f"LLM extraction failed, falling back to regex only: {e}")
+                import traceback
+                logger.debug(f"LLM extraction traceback: {traceback.format_exc()}")
         else:
-            logger.info("LLM extraction disabled, using regex-based extraction")
+            logger.info("LLM extraction disabled, using regex-based extraction only")
 
+        # Merge results
         merged = self._merge_llm_and_regex(llm_parsed, regex_parsed)
         merged["raw_text"] = text
+
+        # Validate results
+        is_valid, issues = self._validate_parsed_data(merged)
+        if not is_valid:
+            logger.warning(f"Parsing validation failed: {', '.join(issues)}")
+            logger.warning(f"Parsed data: Name={merged.get('name')}, Email={merged.get('email')}, "
+                          f"Phone={merged.get('phone')}, Skills={len(merged.get('skills', []))}, "
+                          f"Experience={len(merged.get('experience', []))}")
+        else:
+            logger.info(f"Parsing successful: Name={merged.get('name')}, Email={merged.get('email')}, "
+                       f"Phone={merged.get('phone')}")
+
         return merged
 
     def _extract_text(self, content: bytes, mime_type: str, use_ocr: bool) -> str:
@@ -276,18 +306,76 @@ class ResumeParser:
                 return fallback_text
         return fallback_text
 
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for better parsing"""
+        if not text:
+            return ""
+
+        # Remove excessive whitespace (but preserve paragraph structure)
+        text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces/tabs to single space
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Multiple newlines to double newline
+
+        # Normalize section headers - ensure blank lines before major sections
+        section_keywords = [
+            'SUMMARY', 'OBJECTIVE', 'PROFILE',
+            'EXPERIENCE', 'EMPLOYMENT', 'WORK HISTORY', 'PROFESSIONAL EXPERIENCE',
+            'EDUCATION', 'ACADEMIC BACKGROUND',
+            'SKILLS', 'TECHNICAL SKILLS', 'CORE COMPETENCIES',
+            'CERTIFICATIONS', 'CERTIFICATES',
+            'PROJECTS'
+        ]
+
+        for keyword in section_keywords:
+            # Case-insensitive replacement with proper spacing
+            pattern = r'(\n|^)(' + keyword + r')(\s*:?\s*\n)'
+            text = re.sub(pattern, r'\n\n\2\3', text, flags=re.IGNORECASE)
+
+        # Clean up extra spaces around punctuation
+        text = re.sub(r'\s+([,;.])', r'\1', text)
+
+        return text.strip()
+
+    def _validate_parsed_data(self, parsed: dict) -> tuple[bool, list[str]]:
+        """
+        Validate if parsing produced meaningful results.
+        Returns (is_valid, list_of_issues)
+        """
+        issues = []
+
+        # Check name
+        if not parsed.get("name") or parsed["name"] == "Unknown":
+            issues.append("No name extracted")
+
+        # Check contact info
+        if not parsed.get("email") and not parsed.get("phone"):
+            issues.append("No contact information (email/phone) extracted")
+
+        # Check content
+        has_skills = parsed.get("skills") and len(parsed["skills"]) > 0
+        has_experience = parsed.get("experience") and len(parsed["experience"]) > 0
+        has_text = len(parsed.get("raw_text", "")) > 200
+
+        if not has_skills and not has_experience and not has_text:
+            issues.append("No meaningful content extracted (no skills, experience, or text)")
+
+        is_valid = len(issues) == 0
+        return is_valid, issues
+
     def _parse_with_regex(self, text: str) -> Dict[str, Any]:
         """Parse structured sections using regex."""
+        # Normalize text before parsing
+        normalized_text = self._normalize_text(text)
+
         return {
-            "summary": self._extract_summary(text),
-            "skills": self._extract_skills(text),
-            "experience": self._extract_experience(text),
-            "education": self._extract_education(text),
-            "certifications": self._extract_certifications(text),
-            "name": self._extract_name(text),
-            "email": self._extract_email(text),
-            "phone": self._extract_phone(text),
-            "location": self._extract_location(text),
+            "summary": self._extract_summary(normalized_text),
+            "skills": self._extract_skills(normalized_text),
+            "experience": self._extract_experience(normalized_text),
+            "education": self._extract_education(normalized_text),
+            "certifications": self._extract_certifications(normalized_text),
+            "name": self._extract_name(normalized_text),
+            "email": self._extract_email(normalized_text),
+            "phone": self._extract_phone(normalized_text),
+            "location": self._extract_location(normalized_text),
             "raw_text": text,
         }
 
@@ -437,27 +525,43 @@ class ResumeParser:
     def _extract_skills(self, text: str) -> List[str]:
         """Extract skills from text"""
         skills = []
-        # Look for skills section
+
+        # Look for skills section with more flexible patterns
         match = re.search(
-            r"(?i)(?:skills|technical skills|technologies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications)|\Z)",
+            r"(?i)(?:technical\s+skills?|skills?|core\s+competencies|technologies|expertise|proficiencies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications?|employment|projects?)|\Z)",
             text,
             re.DOTALL,
         )
         if match:
             skills_text = match.group(1)
             # Split by common separators
-            tokens = re.split(r"[,;•\|\n]", skills_text)
+            tokens = re.split(r"[,;•\|\n\t]", skills_text)
             for token in tokens:
                 skill = token.strip()
-                if skill and len(skill) > 1 and len(skill) < 50:
+                # Filter out noise
+                if skill and 2 < len(skill) < 50 and not skill.lower().startswith(("experience", "proficient", "knowledge")):
                     skills.append(skill.lower())
 
-        # Also look for inline skills patterns
-        tech_keywords = re.findall(
-            r"\b(?:python|java|javascript|typescript|react|node|docker|kubernetes|aws|azure|gcp|sql|nosql|terraform|ansible|jenkins|git|ci/cd)\b",
-            text,
-            re.IGNORECASE,
-        )
+        # Comprehensive tech keyword search
+        tech_keywords_pattern = r"\b(?:" + "|".join([
+            # Programming Languages
+            "python", "java", "javascript", "typescript", "c\\+\\+", "c#", "ruby", "go", "golang", "rust", "php", "swift", "kotlin", "scala", "perl", "r",
+            # Web Frontend
+            "react", "angular", "vue", "svelte", "html", "css", "sass", "scss", "tailwind", "bootstrap", "jquery",
+            # Backend/Frameworks
+            "node\\.?js", "express", "django", "flask", "fastapi", "spring", "rails", "laravel", "asp\\.net",
+            # Databases
+            "sql", "mysql", "postgresql", "postgres", "mongodb", "redis", "cassandra", "dynamodb", "elasticsearch", "oracle", "mssql",
+            # Cloud/DevOps
+            "aws", "azure", "gcp", "docker", "kubernetes", "k8s", "terraform", "ansible", "jenkins", "gitlab", "github", "circleci",
+            "ci/cd", "devops", "cloudformation",
+            # Data/ML
+            "pandas", "numpy", "tensorflow", "pytorch", "scikit-learn", "spark", "hadoop", "kafka", "airflow",
+            # Tools/Other
+            "git", "linux", "bash", "powershell", "api", "rest", "graphql", "microservices", "agile", "scrum", "jira"
+        ]) + r")\b"
+
+        tech_keywords = re.findall(tech_keywords_pattern, text, re.IGNORECASE)
         skills.extend([k.lower() for k in tech_keywords])
 
         return list(set(skills))[:50]
@@ -465,9 +569,10 @@ class ResumeParser:
     def _extract_experience(self, text: str) -> List[Dict[str, Any]]:
         """Extract work experience"""
         experience = []
-        # Look for experience section
+
+        # Look for experience section with flexible patterns
         match = re.search(
-            r"(?i)(?:experience|employment|work history)[\s:]*\n(.*?)(?=\n(?:education|certifications|skills)|\Z)",
+            r"(?i)(?:professional\s+experience|work\s+experience|experience|employment\s+history|employment|work\s+history|career\s+history)[\s:]*\n(.*?)(?=\n\s*(?:education|certifications?|skills?|projects?)|\Z)",
             text,
             re.DOTALL,
         )
@@ -545,7 +650,7 @@ class ResumeParser:
         """Extract education"""
         education = []
         match = re.search(
-            r"(?i)(?:education)[\s:]*\n(.*?)(?=\n(?:experience|certifications|skills)|\Z)",
+            r"(?i)(?:education|academic\s+background|qualifications?)[\s:]*\n(.*?)(?=\n\s*(?:experience|certifications?|skills?|projects?)|\Z)",
             text,
             re.DOTALL,
         )
@@ -584,13 +689,33 @@ class ResumeParser:
         return certs
 
     def _extract_name(self, text: str) -> str:
-        """Extract candidate name (usually first line)"""
+        """Extract candidate name (usually at top of CV)"""
         lines = [l.strip() for l in text.split("\n") if l.strip()]
-        if lines:
-            first_line = lines[0]
-            # Name is usually the first line, not too long
-            if len(first_line) < 50 and not "@" in first_line:
-                return first_line
+
+        # Try first 10 lines to find a name
+        for i, line in enumerate(lines[:10]):
+            # Skip likely header/non-name lines
+            if len(line) < 3 or len(line) > 60:
+                continue
+            if "@" in line or "http" in line.lower():
+                continue
+            if line.isupper() and len(line) > 30:  # Skip all-caps headers
+                continue
+            if any(word in line.lower() for word in ["resume", "curriculum", "vitae", "cv", "page"]):
+                continue
+
+            # Look for name pattern: Capitalized words (2-4 words typical)
+            words = line.split()
+            if 2 <= len(words) <= 5:
+                # Check if words start with capital letters
+                if all(word[0].isupper() for word in words if len(word) > 1):
+                    return line
+
+        # Fallback: first non-header line
+        for line in lines[:5]:
+            if len(line) < 50 and not "@" in line and not line.isupper():
+                return line
+
         return "Unknown"
 
     def _extract_email(self, text: str) -> Optional[str]:
@@ -601,18 +726,27 @@ class ResumeParser:
         return None
 
     def _extract_phone(self, text: str) -> Optional[str]:
-        """Extract phone number"""
-        # Common phone number patterns
+        """Extract phone number with improved patterns"""
+        # Comprehensive phone number patterns
         patterns = [
-            r"\+?1?\s*\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})",  # US format: (123) 456-7890, 123-456-7890, +1 123 456 7890
-            r"\+?\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}",  # International formats
+            # US formats
+            r"\+?1?[\s.-]?\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})",  # (123) 456-7890, 123-456-7890, +1-123-456-7890
+            # International formats
+            r"\+\d{1,3}[\s.-]?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}",  # +XX XXX XXX XXXX
+            # Indian format
+            r"\+?91[\s.-]?\d{5}[\s.-]?\d{5}",  # +91 XXXXX XXXXX
+            # Generic 10-digit
+            r"\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b",  # XXX XXX XXXX or XXX-XXX-XXXX
         ]
 
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
-                # Return the full matched phone number
-                return match.group(0).strip()
+                phone = match.group(0).strip()
+                # Basic validation: should have at least 10 digits
+                digits_only = re.sub(r'\D', '', phone)
+                if len(digits_only) >= 10:
+                    return phone
         return None
 
     def _extract_location(self, text: str) -> Optional[str]:
