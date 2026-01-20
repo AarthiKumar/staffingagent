@@ -383,11 +383,12 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         db.add(sec)
 
     # Full document section
-    if parsed.get("raw_text"):
+    raw_text = parsed.get("raw_text", "")
+    if raw_text and raw_text.strip():
         sec = Section(
             document_id=document_id,
             type="full",
-            text=parsed["raw_text"][:10000],  # Limit size
+            text=raw_text.strip()[:10000],  # Limit size
         )
         sections.append(sec)
         db.add(sec)
