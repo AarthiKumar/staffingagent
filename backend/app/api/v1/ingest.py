@@ -383,11 +383,12 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         db.add(sec)
 
     # Full document section
-    if parsed.get("raw_text"):
+    raw_text = parsed.get("raw_text", "")
+    if raw_text and raw_text.strip():
         sec = Section(
             document_id=document_id,
             type="full",
-            text=parsed["raw_text"][:10000],  # Limit size
+            text=raw_text.strip()[:10000],  # Limit size
         )
         sections.append(sec)
         db.add(sec)
@@ -405,9 +406,11 @@ def _create_embeddings(
     """Create embedding records for sections"""
     texts = [s.text for s in sections if s.text]
     if not texts:
+        logger.warning("No sections with text found for embedding creation")
         return 0
 
     try:
+        logger.info(f"Creating embeddings for {len(texts)} sections using {embeddings_service.provider} provider")
         vectors = embeddings_service.embed_texts(texts, agent_id)
         dim = embeddings_service.get_dimension()
 
@@ -422,9 +425,17 @@ def _create_embeddings(
             )
             db.add(emb)
 
+        logger.info(f"Successfully created {len(vectors)} embeddings (dimension={dim})")
         return len(vectors)
     except Exception as e:
-        logger.error(f"Embedding creation failed: {e}")
+        logger.error(f"❌ EMBEDDING CREATION FAILED: {e}")
+        logger.error(f"Provider: {embeddings_service.provider}, Model: {embeddings_service.model}")
+        logger.error("Possible causes:")
+        logger.error("  1. sentence-transformers not installed: pip install sentence-transformers")
+        logger.error("  2. Model not downloaded (will download on first use, requires internet)")
+        logger.error("  3. OpenAI API key not set (if using EMBEDDINGS_PROVIDER=openai)")
+        import traceback
+        logger.error(f"Full error: {traceback.format_exc()}")
         return 0
 
 

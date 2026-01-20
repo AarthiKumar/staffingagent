@@ -1,5 +1,6 @@
 """Resume parser implementation"""
 import io
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
@@ -13,6 +14,13 @@ from app.services.ocr import ocr_service
 from app.services.llm_extraction import get_llm_extraction_service
 
 logger = get_logger(__name__)
+
+# Suppress verbose pdfminer debug logs (token-level output)
+logging.getLogger("pdfminer").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.pdfpage").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.pdfinterp").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.converter").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.psparser").setLevel(logging.WARNING)
 
 T = TypeVar('T')
 
@@ -135,15 +143,15 @@ class ResumeParser:
 
                 # Try pdfplumber first for better multi-column layout handling (with timeout)
                 try:
-                    logger.info("Attempting pdfplumber extraction with 30s timeout")
+                    logger.info("Attempting pdfplumber extraction with 10s timeout")
                     text = run_with_timeout(
                         lambda: self._extract_pdf_with_pdfplumber(content),
-                        timeout_seconds=30
+                        timeout_seconds=10
                     )
                     if not text:
                         text = ""
                 except TimeoutException:
-                    logger.warning("pdfplumber extraction timed out after 30s, skipping to pdfminer")
+                    logger.warning("pdfplumber extraction timed out after 10s, skipping to pdfminer")
                     text = ""
                 except Exception as e:
                     logger.warning(f"pdfplumber extraction failed: {e}")
@@ -151,16 +159,16 @@ class ResumeParser:
 
                 # Fallback to pdfminer if pdfplumber fails or returns too little text
                 if not text or len(text.strip()) < 100:
-                    logger.info("pdfplumber extraction insufficient, trying pdfminer with 30s timeout")
+                    logger.info("pdfplumber extraction insufficient, trying pdfminer with 10s timeout")
                     try:
                         text = run_with_timeout(
                             lambda: extract_pdf_text(io.BytesIO(content)),
-                            timeout_seconds=30
+                            timeout_seconds=10
                         )
                         if not text:
                             text = ""
                     except TimeoutException:
-                        logger.warning("pdfminer extraction timed out after 30s")
+                        logger.warning("pdfminer extraction timed out after 10s")
                         text = ""
                     except Exception as e:
                         logger.warning(f"pdfminer extraction failed: {e}")
@@ -168,16 +176,16 @@ class ResumeParser:
 
                 # If text is still too short and OCR is enabled, try OCR
                 if use_ocr and len(text.strip()) < 100 and ocr_service.available:
-                    logger.info("PDF text too short, attempting OCR with 60s timeout")
+                    logger.info("PDF text too short, attempting OCR with 20s timeout")
                     try:
                         ocr_text = run_with_timeout(
                             lambda: ocr_service.extract_text_from_pdf(content),
-                            timeout_seconds=60
+                            timeout_seconds=20
                         )
                         if ocr_text:
                             text = ocr_text
                     except TimeoutException:
-                        logger.warning("OCR extraction timed out after 60s")
+                        logger.warning("OCR extraction timed out after 20s")
                     except Exception as e:
                         logger.warning(f"OCR extraction failed: {e}")
 
@@ -316,13 +324,20 @@ class ResumeParser:
             return fallback_text
 
         if "pdf" in mime_type.lower():
+            # Skip duplicate layout extraction if primary extraction already has sufficient text
+            # This saves 10+ seconds per CV
+            if fallback_text and len(fallback_text.strip()) >= 500:
+                logger.info("Primary extraction has sufficient text, skipping duplicate layout-aware extraction")
+                return fallback_text
+
             try:
+                logger.info("Primary text was short, attempting layout-aware extraction with 10s timeout")
                 return run_with_timeout(
                     lambda: self._extract_pdf_layout_text(content),
-                    timeout_seconds=30
+                    timeout_seconds=10
                 ) or fallback_text
             except TimeoutException:
-                logger.warning("Layout-aware PDF extraction timed out, using fallback text")
+                logger.warning("Layout-aware PDF extraction timed out after 10s, using fallback text")
             except Exception as e:
                 logger.warning(f"Layout-aware PDF extraction failed, using fallback text: {e}")
             return fallback_text
