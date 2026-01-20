@@ -107,6 +107,29 @@ class ResumeParser:
     def _extract_text(self, content: bytes, mime_type: str, use_ocr: bool) -> str:
         """Extract text from document based on mime type"""
         try:
+            # Handle Word documents (.doc and .docx) - convert to PDF for better extraction
+            if "word" in mime_type.lower() or mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+                logger.info(f"Word document detected ({mime_type}), attempting PDF conversion for better extraction")
+                try:
+                    from app.services.document_conversion import conversion_service
+                    pdf_bytes = conversion_service.word_to_pdf(content, mime_type)
+
+                    if pdf_bytes:
+                        logger.info(f"Successfully converted Word to PDF ({len(pdf_bytes)} bytes), using PDF extraction")
+                        # Recursively call with PDF content
+                        return self._extract_text(pdf_bytes, "application/pdf", use_ocr)
+                    else:
+                        logger.warning("Word to PDF conversion failed, falling back to direct Word extraction")
+                except Exception as e:
+                    logger.warning(f"Word to PDF conversion error: {e}, falling back to direct extraction")
+
+                # Fallback: try direct DOCX extraction (only works for .docx, not .doc)
+                try:
+                    return self._extract_docx_text(content)
+                except Exception as e:
+                    logger.error(f"Direct Word extraction also failed: {e}")
+                    return ""
+
             if "pdf" in mime_type.lower():
                 text = ""
 
@@ -159,8 +182,7 @@ class ResumeParser:
                         logger.warning(f"OCR extraction failed: {e}")
 
                 return text
-            elif "word" in mime_type.lower() or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                return self._extract_docx_text(content)
+
             elif "text" in mime_type.lower():
                 return content.decode("utf-8", errors="ignore")
             else:
@@ -287,6 +309,12 @@ class ResumeParser:
 
     def _extract_text_for_llm(self, content: bytes, mime_type: str, fallback_text: str) -> str:
         """Extract layout-aware text for LLM input based on document type."""
+        # For Word documents, we'll already have converted them to PDF in _extract_text
+        # So fallback_text will be the PDF-extracted text, which is good for LLM
+        if "word" in mime_type.lower() or mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+            # Word documents are already converted to PDF in _extract_text, use fallback
+            return fallback_text
+
         if "pdf" in mime_type.lower():
             try:
                 return run_with_timeout(
@@ -298,12 +326,7 @@ class ResumeParser:
             except Exception as e:
                 logger.warning(f"Layout-aware PDF extraction failed, using fallback text: {e}")
             return fallback_text
-        if "word" in mime_type.lower() or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            try:
-                return self._extract_docx_text(content) or fallback_text
-            except Exception as e:
-                logger.warning(f"Structured DOCX extraction failed, using fallback text: {e}")
-                return fallback_text
+
         return fallback_text
 
     def _normalize_text(self, text: str) -> str:
