@@ -127,7 +127,15 @@ class EmbeddingsService:
 
 def get_embeddings_service() -> EmbeddingsService:
     """Get configured embeddings service"""
-    return EmbeddingsService(
-        model=settings.embeddings_model,
-        provider=settings.embeddings_provider,
-    )
+    try:
+        service = EmbeddingsService(
+            model=settings.embeddings_model,
+            provider=settings.embeddings_provider,
+        )
+        logger.info(f"Embeddings service initialized: provider={settings.embeddings_provider}, model={settings.embeddings_model}")
+        return service
+    except Exception as e:
+        logger.error(f"Failed to initialize embeddings service: {e}")
+        logger.error("Make sure you have sentence-transformers installed: pip install sentence-transformers")
+        logger.error("Or switch to OpenAI embeddings by setting EMBEDDINGS_PROVIDER=openai and LLM_API_KEY in .env")
+        raise RuntimeError(f"Embeddings service initialization failed: {e}") from e
