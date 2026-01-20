@@ -26,7 +26,7 @@ export function UploadCV() {
   const queryClient = useQueryClient();
   const [uploads, setUploads] = useState<UploadResult[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [useOCR, setUseOCR] = useState(true);
+  const [useOCR, setUseOCR] = useState(false);
 
   // Manual input dialog state
   const [manualInputDialog, setManualInputDialog] = useState<{
