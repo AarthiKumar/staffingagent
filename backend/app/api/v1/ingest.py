@@ -336,6 +336,13 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
     """Create section records from parsed data"""
     sections = []
 
+    logger.info(f"Creating sections from parsed data. Available keys: {list(parsed.keys())}")
+    logger.info(f"Parsed data summary: raw_text={len(parsed.get('raw_text', '')) if parsed.get('raw_text') else 0} chars, "
+               f"summary={len(parsed.get('summary', '')) if parsed.get('summary') else 0} chars, "
+               f"skills={len(parsed.get('skills', []))} items, "
+               f"experience={len(parsed.get('experience', []))} items, "
+               f"certifications={len(parsed.get('certifications', []))} items")
+
     # Summary section
     if parsed.get("summary"):
         sec = Section(
@@ -347,6 +354,7 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
+        logger.info("Created summary section")
 
     # Skills section
     if parsed.get("skills"):
@@ -358,6 +366,7 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
+        logger.info(f"Created skills section with {len(parsed['skills'])} skills")
 
     # Experience sections
     for idx, exp in enumerate(parsed.get("experience", [])):
@@ -370,6 +379,8 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
+    if parsed.get("experience"):
+        logger.info(f"Created {len(parsed['experience'])} experience sections")
 
     # Certifications section
     if parsed.get("certifications"):
@@ -381,8 +392,9 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
+        logger.info(f"Created certifications section with {len(parsed['certifications'])} certs")
 
-    # Full document section
+    # Full document section - ALWAYS create this if we have any text
     raw_text = parsed.get("raw_text", "")
     if raw_text and raw_text.strip():
         sec = Section(
@@ -392,6 +404,14 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
+        logger.info(f"Created full document section ({len(raw_text)} chars, truncated to {len(raw_text.strip()[:10000])})")
+    else:
+        logger.warning("⚠️ No raw_text found in parsed data - cannot create full document section!")
+
+    if not sections:
+        logger.error("❌ NO SECTIONS CREATED! This means parsing returned completely empty data.")
+    else:
+        logger.info(f"✅ Created {len(sections)} sections total")
 
     return sections
 
