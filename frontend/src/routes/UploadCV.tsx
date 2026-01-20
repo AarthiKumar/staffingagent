@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ interface UploadResult {
 
 export function UploadCV() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [uploads, setUploads] = useState<UploadResult[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [useOCR, setUseOCR] = useState(true);
@@ -129,6 +130,7 @@ export function UploadCV() {
               : u
           )
         );
+        queryClient.invalidateQueries({ queryKey: ['candidates'] });
         return result;
       } catch (error) {
         setUploads((prev) =>
@@ -172,6 +174,7 @@ export function UploadCV() {
             : u
         )
       );
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
 
       return result;
     },
