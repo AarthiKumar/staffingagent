@@ -46,14 +46,16 @@ class ResumeParser:
         # Extract raw text
         text = self._extract_text(content, mime_type, use_ocr)
         llm_text = self._extract_text_for_llm(content, mime_type, text)
-        text = self._choose_best_text(text, llm_text)
+
+        if (not text or len(text.strip()) < 50) and llm_text and len(llm_text.strip()) >= 50:
+            logger.info("Primary extraction was short; using layout-aware text instead")
+            text = llm_text
 
         if not text or len(text.strip()) < 50:
             logger.warning("Extracted text too short or empty")
             return self._empty_result()
 
-        normalized_text = self._normalize_text_for_parsing(text)
-        regex_parsed = self._parse_with_regex(normalized_text)
+        regex_parsed = self._parse_with_regex(text)
 
         # Try LLM extraction first for consistent data extraction
         llm_service = get_llm_extraction_service()
@@ -273,55 +275,6 @@ class ResumeParser:
                 logger.warning(f"Structured DOCX extraction failed, using fallback text: {e}")
                 return fallback_text
         return fallback_text
-
-    def _choose_best_text(self, primary_text: str, layout_text: str) -> str:
-        """Choose the most informative text between primary and layout-aware extraction."""
-        primary = primary_text or ""
-        layout = layout_text or ""
-
-        if not primary and not layout:
-            return ""
-        if not primary:
-            return layout
-        if not layout:
-            return primary
-
-        primary_score = self._score_text_quality(primary)
-        layout_score = self._score_text_quality(layout)
-
-        if layout_score > primary_score * 1.15:
-            logger.info("Using layout-aware text for parsing due to higher quality score")
-            return layout
-        return primary
-
-    def _score_text_quality(self, text: str) -> float:
-        """Score text quality based on length and alphanumeric density."""
-        stripped = text.strip()
-        if not stripped:
-            return 0.0
-        length = len(stripped)
-        alnum = sum(ch.isalnum() for ch in stripped)
-        density = alnum / max(length, 1)
-        lines = len([line for line in stripped.splitlines() if line.strip()])
-        return length * density + lines * 2
-
-    def _normalize_text_for_parsing(self, text: str) -> str:
-        """Normalize text to improve regex-based section detection."""
-        normalized = text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
-        normalized = re.sub(r"[ \xa0]{2,}", " ", normalized)
-        normalized = re.sub(r"(?m)^[ \t]+", "", normalized)
-
-        def _heading_repl(match: re.Match[str]) -> str:
-            heading = match.group(1)
-            return f"{heading}\n"
-
-        normalized = re.sub(
-            r"(?im)^(summary|objective|profile|skills|experience|employment|work history|education|certifications?)\s*[-:]\s+",
-            _heading_repl,
-            normalized,
-        )
-        normalized = re.sub(r"(?m)\n{3,}", "\n\n", normalized)
-        return normalized.strip()
 
     def _parse_with_regex(self, text: str) -> Dict[str, Any]:
         """Parse structured sections using regex."""
