@@ -73,11 +73,79 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
         sections_count = db.query(Section).filter(Section.document_id == existing.id).count()
         embeddings_count = db.query(Embedding).filter(Embedding.document_id == existing.id).count()
 
+        if candidate:
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=str(candidate.id),
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+            )
+
+        missing_fields = []
+        if not req.manual_name or req.manual_name == "Unknown":
+            missing_fields.append("name")
+        if not req.manual_email:
+            missing_fields.append("email")
+        if not req.manual_phone:
+            missing_fields.append("phone")
+
+        if missing_fields:
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=None,
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+                missing_required_fields=missing_fields,
+                requires_manual_input=True,
+            )
+
+        parsed = {
+            "name": req.manual_name or "Unknown",
+            "email": req.manual_email,
+            "phone": req.manual_phone,
+            "location": None,
+        }
+
+        merge_service = get_cv_merge_service(db)
+        existing_candidate = merge_service.find_duplicate(
+            name=parsed.get("name", "Unknown"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+        )
+
+        if existing_candidate:
+            sections = db.query(Section).filter(Section.document_id == existing.id).all()
+            new_sections = [{"type": sec.type, "text": sec.text} for sec in sections]
+            merge_proposal = merge_service.create_merge_proposal(
+                existing_candidate, parsed, new_sections
+            )
+
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=None,
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+                merge_proposal=merge_proposal,
+                requires_approval=True,
+            )
+
+        candidate = Candidate(
+            document_id=existing.id,
+            name=parsed.get("name", "Unknown"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+            location=parsed.get("location"),
+        )
+        db.add(candidate)
+        db.commit()
+
         return IngestResponse(
             document_id=str(existing.id),
-            candidate_id=str(candidate.id) if candidate else None,
+            candidate_id=str(candidate.id),
             sections_count=sections_count,
             embeddings_count=embeddings_count,
+            requires_manual_input=False,
+            requires_approval=False,
         )
 
     # Ensure agent exists
