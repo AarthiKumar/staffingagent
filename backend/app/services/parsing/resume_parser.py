@@ -99,16 +99,20 @@ class ResumeParser:
         merged = self._merge_llm_and_regex(llm_parsed, regex_parsed)
         merged["raw_text"] = text
 
+        # Apply ontology-based normalization with skill detection in experience
+        merged = self._apply_normalization(merged)
+
         # Validate results
         is_valid, issues = self._validate_parsed_data(merged)
         if not is_valid:
             logger.warning(f"Parsing validation failed: {', '.join(issues)}")
             logger.warning(f"Parsed data: Name={merged.get('name')}, Email={merged.get('email')}, "
-                          f"Phone={merged.get('phone')}, Skills={len(merged.get('skills', []))}, "
-                          f"Experience={len(merged.get('experience', []))}")
+                          f"Phone={merged.get('phone')}, Skills: {len(merged.get('skills', []))} raw / "
+                          f"{len(merged.get('skills_normalized', []))} normalized, "
+                          f"Experience: {len(merged.get('experience', []))}")
         else:
             logger.info(f"Parsing successful: Name={merged.get('name')}, Email={merged.get('email')}, "
-                       f"Phone={merged.get('phone')}")
+                       f"Phone={merged.get('phone')}, Skills: {len(merged.get('skills_normalized', []))} normalized")
 
         return merged
 
@@ -795,14 +799,116 @@ class ResumeParser:
             return match.group(0)
         return None
 
+    def _apply_normalization(self, parsed: dict) -> dict:
+        """
+        Apply ontology-based normalization to extracted data.
+        - Normalizes skills and certifications to canonical forms
+        - Detects skills mentioned in full text and experience entries
+        - Adds: skills_normalized, certifications_normalized, skills_map, certifications_map
+        - Enhances experience entries with skills_normalized and skills_map
+        """
+        try:
+            # Import normalize service (lazy load to avoid circular imports)
+            from app.services.normalize import NormalizeService
+
+            # Load ontology (default staffing agent)
+            normalize_service = NormalizeService(
+                skills_csv="./config/skills.csv",
+                aliases_csv="./config/aliases.csv",
+                certs_csv="./config/certs.csv"
+            )
+
+            # Keep raw extracted lists
+            skills_raw = parsed.get("skills", [])
+            certs_raw = parsed.get("certifications", [])
+
+            # Normalize skills list
+            skills_normalized = normalize_service.normalize_skills(skills_raw)
+
+            # Also detect skills from full text (catches mentions not explicitly listed)
+            raw_text = parsed.get("raw_text", "")
+            text_skill_matches = normalize_service.find_skills_in_text(raw_text)
+            text_skills = {m["canonical"] for m in text_skill_matches}
+
+            # Merge: explicit + detected from text
+            all_skills_set = set(skills_normalized) | text_skills
+            skills_normalized_final = sorted(all_skills_set)
+
+            # Build skills map (evidence for each skill)
+            skills_map = []
+            for skill in skills_normalized_final:
+                # Find evidence (from raw list or text detection)
+                evidence = []
+                for raw_skill in skills_raw:
+                    if normalize_service._norm(raw_skill) in normalize_service._norm(skill) or \
+                       normalize_service.normalize_skill(raw_skill) == skill:
+                        evidence.append(f"explicit: '{raw_skill}'")
+
+                for match in text_skill_matches:
+                    if match["canonical"] == skill:
+                        evidence.append(match["evidence"])
+
+                skills_map.append({
+                    "canonical": skill,
+                    "confidence": 0.95 if evidence else 0.80,
+                    "evidence": "; ".join(evidence[:3]) if evidence else "detected in text"
+                })
+
+            # Normalize certifications
+            certs_normalized = normalize_service.normalize_certs(certs_raw)
+
+            # Build certs map
+            certs_map = []
+            for cert in certs_normalized:
+                # Find original mention
+                raw_match = [c for c in certs_raw if normalize_service.normalize_cert(c) == cert]
+                evidence = f"explicit: '{raw_match[0]}'" if raw_match else "normalized"
+                certs_map.append({
+                    "canonical": cert,
+                    "confidence": 0.95,
+                    "evidence": evidence
+                })
+
+            # Enhance experience entries with per-role skill detection
+            experience_enhanced = []
+            for exp in parsed.get("experience", []):
+                exp_enhanced = normalize_service.normalize_experience_skills(exp)
+                experience_enhanced.append(exp_enhanced)
+
+            # Update parsed dict
+            parsed["skills_normalized"] = skills_normalized_final
+            parsed["certifications_normalized"] = certs_normalized
+            parsed["skills_map"] = skills_map
+            parsed["certifications_map"] = certs_map
+            parsed["experience"] = experience_enhanced
+
+            logger.info(f"Normalization complete: {len(skills_raw)} raw skills → "
+                       f"{len(skills_normalized_final)} normalized (including {len(text_skills)} detected from text), "
+                       f"{len(certs_raw)} raw certs → {len(certs_normalized)} normalized")
+
+        except Exception as e:
+            logger.error(f"Normalization failed: {e}")
+            import traceback
+            logger.debug(f"Normalization traceback: {traceback.format_exc()}")
+
+            # Fallback: add empty normalized fields
+            parsed["skills_normalized"] = parsed.get("skills", [])
+            parsed["certifications_normalized"] = parsed.get("certifications", [])
+            parsed["skills_map"] = []
+            parsed["certifications_map"] = []
+
+        return parsed
+
     def _empty_result(self) -> dict:
         """Return empty parsed result"""
         return {
             "summary": "",
             "skills": [],
+            "skills_normalized": [],
             "experience": [],
             "education": [],
             "certifications": [],
+            "certifications_normalized": [],
             "name": "Unknown",
             "email": None,
             "phone": None,
