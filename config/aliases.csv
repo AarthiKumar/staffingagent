@@ -14,3 +14,45 @@ helm,kubernetes
 kube,kubernetes
 cicd,ci/cd
 postgres,postgresql
+oracle db,oracle database
+oracle rdbms,oracle database
+oracle 11g,oracle database
+oracle 12c,oracle database
+oracle 19c,oracle database
+oracle 21c,oracle database
+plsql,pl/sql
+oracle pl/sql,pl/sql
+pl sql,pl/sql
+ansi sql,sql
+oracle sql,sql
+rac,oracle rac
+oracle real application clusters,oracle rac
+dataguard,oracle data guard
+dg,oracle data guard
+goldengate,oracle goldengate
+ogg,oracle goldengate
+exadata,oracle exadata
+apex,oracle apex
+oracle application express,oracle apex
+oic,oracle integration cloud
+oracle integration,oracle integration cloud
+oracle ipaas,oracle integration cloud
+soa suite,oracle soa suite
+oracle soa,oracle soa suite
+bpel,oracle soa suite
+oracle ebs,oracle e-business suite
+ebs r12,oracle e-business suite
+e-business suite,oracle e-business suite
+fusion apps,oracle fusion applications
+oracle fusion,oracle fusion applications
+oci,oracle cloud infrastructure
+oracle cloud,oracle cloud infrastructure
+oracle iaas,oracle cloud infrastructure
+otbi,oracle otbi
+oracle transactional business intelligence,oracle otbi
+obiee,oracle bi
+oracle bi,oracle bi
+oas,oracle bi
+oracle analytics server,oracle bi
+oaf,oracle application framework
+oracle af,oracle application framework
