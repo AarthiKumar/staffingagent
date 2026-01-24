@@ -48,6 +48,7 @@ def setup_logging(level: str = "INFO"):
     # Quiet down noisy libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("pdfminer").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

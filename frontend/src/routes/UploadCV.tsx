@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,14 +18,16 @@ interface UploadResult {
   embeddings_count?: number;
   error?: string;
   missing_required_fields?: string[];
+  manual_data?: { name?: string; email?: string; phone?: string };
   merge_proposal?: any;
 }
 
 export function UploadCV() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [uploads, setUploads] = useState<UploadResult[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [useOCR, setUseOCR] = useState(true);
+  const [useOCR, setUseOCR] = useState(false);
 
   // Manual input dialog state
   const [manualInputDialog, setManualInputDialog] = useState<{
@@ -71,6 +73,7 @@ export function UploadCV() {
                     status: 'manual_input',
                     document_id: result.document_id,
                     missing_required_fields: result.missing_required_fields,
+                    manual_data: u.manual_data,
                   }
                 : u
             )
@@ -129,6 +132,7 @@ export function UploadCV() {
               : u
           )
         );
+        queryClient.invalidateQueries({ queryKey: ['candidates'] });
         return result;
       } catch (error) {
         setUploads((prev) =>
@@ -172,6 +176,7 @@ export function UploadCV() {
             : u
         )
       );
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
 
       return result;
     },
@@ -184,14 +189,31 @@ export function UploadCV() {
   }) => {
     if (!manualInputDialog) return;
 
+    const existingData = uploads[manualInputDialog.index]?.manual_data ?? {};
+    const mergedManualData = {
+      ...existingData,
+      ...data,
+    };
+
     setManualInputDialog(null);
 
     // Re-upload with manual data
     const manualData = {
-      manual_name: data.name,
-      manual_email: data.email,
-      manual_phone: data.phone,
+      manual_name: mergedManualData.name,
+      manual_email: mergedManualData.email,
+      manual_phone: mergedManualData.phone,
     };
+
+    setUploads((prev) =>
+      prev.map((u, i) =>
+        i === manualInputDialog.index
+          ? {
+              ...u,
+              manual_data: mergedManualData,
+            }
+          : u
+      )
+    );
 
     uploadMutation.mutate({
       file: manualInputDialog.file,
@@ -471,6 +493,7 @@ export function UploadCV() {
           onSubmit={handleManualInputSubmit}
           missingFields={manualInputDialog.missingFields}
           filename={manualInputDialog.file.name}
+          initialValues={uploads[manualInputDialog.index]?.manual_data}
         />
       )}
 

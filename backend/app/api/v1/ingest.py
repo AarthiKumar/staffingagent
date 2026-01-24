@@ -73,11 +73,79 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
         sections_count = db.query(Section).filter(Section.document_id == existing.id).count()
         embeddings_count = db.query(Embedding).filter(Embedding.document_id == existing.id).count()
 
+        if candidate:
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=str(candidate.id),
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+            )
+
+        missing_fields = []
+        if not req.manual_name or req.manual_name == "Unknown":
+            missing_fields.append("name")
+        if not req.manual_email:
+            missing_fields.append("email")
+        if not req.manual_phone:
+            missing_fields.append("phone")
+
+        if missing_fields:
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=None,
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+                missing_required_fields=missing_fields,
+                requires_manual_input=True,
+            )
+
+        parsed = {
+            "name": req.manual_name or "Unknown",
+            "email": req.manual_email,
+            "phone": req.manual_phone,
+            "location": None,
+        }
+
+        merge_service = get_cv_merge_service(db)
+        existing_candidate = merge_service.find_duplicate(
+            name=parsed.get("name", "Unknown"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+        )
+
+        if existing_candidate:
+            sections = db.query(Section).filter(Section.document_id == existing.id).all()
+            new_sections = [{"type": sec.type, "text": sec.text} for sec in sections]
+            merge_proposal = merge_service.create_merge_proposal(
+                existing_candidate, parsed, new_sections
+            )
+
+            return IngestResponse(
+                document_id=str(existing.id),
+                candidate_id=None,
+                sections_count=sections_count,
+                embeddings_count=embeddings_count,
+                merge_proposal=merge_proposal,
+                requires_approval=True,
+            )
+
+        candidate = Candidate(
+            document_id=existing.id,
+            name=parsed.get("name", "Unknown"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+            location=parsed.get("location"),
+        )
+        db.add(candidate)
+        db.commit()
+
         return IngestResponse(
             document_id=str(existing.id),
-            candidate_id=str(candidate.id) if candidate else None,
+            candidate_id=str(candidate.id),
             sections_count=sections_count,
             embeddings_count=embeddings_count,
+            requires_manual_input=False,
+            requires_approval=False,
         )
 
     # Ensure agent exists
@@ -111,6 +179,17 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Parsing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Parsing failed: {e}")
+    else:
+        logger.info(
+            "Parsed resume summary - name: %s, summary_len: %s, skills: %s, experience: %s, education: %s, certs: %s, raw_len: %s",
+            parsed.get("name"),
+            len(parsed.get("summary", "")),
+            len(parsed.get("skills", [])),
+            len(parsed.get("experience", [])),
+            len(parsed.get("education", [])),
+            len(parsed.get("certifications", [])),
+            len(parsed.get("raw_text", "") or ""),
+        )
 
     # Override with manual fields if provided
     if req.manual_name:
@@ -315,11 +394,12 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         db.add(sec)
 
     # Full document section
-    if parsed.get("raw_text"):
+    raw_text = parsed.get("raw_text", "")
+    if raw_text and raw_text.strip():
         sec = Section(
             document_id=document_id,
             type="full",
-            text=parsed["raw_text"][:10000],  # Limit size
+            text=raw_text.strip()[:10000],  # Limit size
         )
         sections.append(sec)
         db.add(sec)
@@ -337,6 +417,7 @@ def _create_embeddings(
     """Create embedding records for sections"""
     texts = [s.text for s in sections if s.text]
     if not texts:
+        logger.warning("No section text available for embeddings")
         return 0
 
     try:
@@ -354,6 +435,7 @@ def _create_embeddings(
             )
             db.add(emb)
 
+        logger.info(f"Created {len(vectors)} embeddings for document {document_id}")
         return len(vectors)
     except Exception as e:
         logger.error(f"Embedding creation failed: {e}")
