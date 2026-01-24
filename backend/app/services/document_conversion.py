@@ -55,8 +55,13 @@ class DocumentConversionService:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
 
-                # Write Word document to temp file
-                word_path = tmpdir_path / "input.docx"
+                # Write Word document to temp file with correct extension
+                # Use .doc for old binary format, .docx for new XML format
+                if mime_type == "application/msword":
+                    word_path = tmpdir_path / "input.doc"
+                else:
+                    word_path = tmpdir_path / "input.docx"
+
                 with open(word_path, "wb") as f:
                     f.write(word_bytes)
 

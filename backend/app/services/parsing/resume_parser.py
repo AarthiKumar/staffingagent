@@ -1,5 +1,6 @@
 """Resume parser implementation"""
 import io
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
@@ -13,6 +14,13 @@ from app.services.ocr import ocr_service
 from app.services.llm_extraction import get_llm_extraction_service
 
 logger = get_logger(__name__)
+
+# Suppress verbose pdfminer debug logs (token-level output)
+logging.getLogger("pdfminer").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.pdfpage").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.pdfinterp").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.converter").setLevel(logging.WARNING)
+logging.getLogger("pdfminer.psparser").setLevel(logging.WARNING)
 
 T = TypeVar('T')
 
@@ -43,30 +51,32 @@ class ResumeParser:
 
     def parse(self, content: bytes, mime_type: str, use_ocr: bool = False) -> dict:
         """Parse resume and extract structured information"""
+        logger.info(f"Starting CV parsing - mime_type: {mime_type}, use_ocr: {use_ocr}")
+
         # Extract raw text
-        primary_text = self._extract_text(content, mime_type, use_ocr)
-        llm_text = self._extract_text_for_llm(content, mime_type, primary_text)
-        text = self._choose_best_text(primary_text, llm_text)
-        logger.info(
-            "Resume text lengths - primary: %s, layout: %s, chosen: %s",
-            len(primary_text or ""),
-            len(llm_text or ""),
-            len(text or ""),
-        )
+        text = self._extract_text(content, mime_type, use_ocr)
+        logger.info(f"Primary text extraction: {len(text) if text else 0} characters")
+
+        llm_text = self._extract_text_for_llm(content, mime_type, text)
+        logger.info(f"Layout-aware text extraction: {len(llm_text) if llm_text else 0} characters")
+
+        if (not text or len(text.strip()) < 50) and llm_text and len(llm_text.strip()) >= 50:
+            logger.info("Primary extraction was short; using layout-aware text instead")
+            text = llm_text
 
         if not text or len(text.strip()) < 50:
-            logger.warning("Extracted text too short or empty")
+            logger.warning(f"Extracted text too short or empty: {len(text) if text else 0} chars")
             return self._empty_result()
 
-        normalized_text = self._normalize_text_for_parsing(text)
-        regex_parsed = self._parse_with_regex(normalized_text)
-        logger.info(
-            "Regex parse counts - skills: %s, experience: %s, education: %s, certs: %s",
-            len(regex_parsed.get("skills", [])),
-            len(regex_parsed.get("experience", [])),
-            len(regex_parsed.get("education", [])),
-            len(regex_parsed.get("certifications", [])),
-        )
+        # Log text preview for debugging
+        preview = text[:200].replace('\n', ' ')
+        logger.info(f"Text preview: {preview}...")
+
+        # Regex parsing
+        logger.info("Performing regex-based extraction")
+        regex_parsed = self._parse_with_regex(text)
+        logger.info(f"Regex extracted - Name: {regex_parsed.get('name')}, Email: {regex_parsed.get('email')}, "
+                   f"Skills: {len(regex_parsed.get('skills', []))}, Experience: {len(regex_parsed.get('experience', []))}")
 
         # Try LLM extraction first for consistent data extraction
         llm_service = get_llm_extraction_service()
@@ -75,33 +85,77 @@ class ResumeParser:
             try:
                 logger.info("Attempting LLM-based CV extraction")
                 llm_parsed = self._extract_llm_with_chunking(llm_service, llm_text or text)
-                logger.info(f"LLM extraction completed for: {llm_parsed.get('name', 'Unknown')}")
+                logger.info(f"LLM extraction completed - Name: {llm_parsed.get('name', 'Unknown')}, "
+                           f"Email: {llm_parsed.get('email')}, Skills: {len(llm_parsed.get('skills', []))}, "
+                           f"Experience: {len(llm_parsed.get('experience', []))}")
             except Exception as e:
                 logger.warning(f"LLM extraction failed, falling back to regex only: {e}")
+                import traceback
+                logger.debug(f"LLM extraction traceback: {traceback.format_exc()}")
         else:
-            logger.info("LLM extraction disabled, using regex-based extraction")
+            logger.info("LLM extraction disabled, using regex-based extraction only")
 
+        # Merge results
         merged = self._merge_llm_and_regex(llm_parsed, regex_parsed)
         merged["raw_text"] = text
+
+        # Apply ontology-based normalization with skill detection in experience
+        merged = self._apply_normalization(merged)
+
+        # Validate results
+        is_valid, issues = self._validate_parsed_data(merged)
+        if not is_valid:
+            logger.warning(f"Parsing validation failed: {', '.join(issues)}")
+            logger.warning(f"Parsed data: Name={merged.get('name')}, Email={merged.get('email')}, "
+                          f"Phone={merged.get('phone')}, Skills: {len(merged.get('skills', []))} raw / "
+                          f"{len(merged.get('skills_normalized', []))} normalized, "
+                          f"Experience: {len(merged.get('experience', []))}")
+        else:
+            logger.info(f"Parsing successful: Name={merged.get('name')}, Email={merged.get('email')}, "
+                       f"Phone={merged.get('phone')}, Skills: {len(merged.get('skills_normalized', []))} normalized")
+
         return merged
 
     def _extract_text(self, content: bytes, mime_type: str, use_ocr: bool) -> str:
         """Extract text from document based on mime type"""
         try:
+            # Handle Word documents (.doc and .docx) - convert to PDF for better extraction
+            if "word" in mime_type.lower() or mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+                logger.info(f"Word document detected ({mime_type}), attempting PDF conversion for better extraction")
+                try:
+                    from app.services.document_conversion import conversion_service
+                    pdf_bytes = conversion_service.word_to_pdf(content, mime_type)
+
+                    if pdf_bytes:
+                        logger.info(f"Successfully converted Word to PDF ({len(pdf_bytes)} bytes), using PDF extraction")
+                        # Recursively call with PDF content
+                        return self._extract_text(pdf_bytes, "application/pdf", use_ocr)
+                    else:
+                        logger.warning("Word to PDF conversion failed, falling back to direct Word extraction")
+                except Exception as e:
+                    logger.warning(f"Word to PDF conversion error: {e}, falling back to direct extraction")
+
+                # Fallback: try direct DOCX extraction (only works for .docx, not .doc)
+                try:
+                    return self._extract_docx_text(content)
+                except Exception as e:
+                    logger.error(f"Direct Word extraction also failed: {e}")
+                    return ""
+
             if "pdf" in mime_type.lower():
                 text = ""
 
                 # Try pdfplumber first for better multi-column layout handling (with timeout)
                 try:
-                    logger.info("Attempting pdfplumber extraction with 30s timeout")
+                    logger.info("Attempting pdfplumber extraction with 10s timeout")
                     text = run_with_timeout(
                         lambda: self._extract_pdf_with_pdfplumber(content),
-                        timeout_seconds=30
+                        timeout_seconds=10
                     )
                     if not text:
                         text = ""
                 except TimeoutException:
-                    logger.warning("pdfplumber extraction timed out after 30s, skipping to pdfminer")
+                    logger.warning("pdfplumber extraction timed out after 10s, skipping to pdfminer")
                     text = ""
                 except Exception as e:
                     logger.warning(f"pdfplumber extraction failed: {e}")
@@ -109,16 +163,16 @@ class ResumeParser:
 
                 # Fallback to pdfminer if pdfplumber fails or returns too little text
                 if not text or len(text.strip()) < 100:
-                    logger.info("pdfplumber extraction insufficient, trying pdfminer with 30s timeout")
+                    logger.info("pdfplumber extraction insufficient, trying pdfminer with 10s timeout")
                     try:
                         text = run_with_timeout(
                             lambda: extract_pdf_text(io.BytesIO(content)),
-                            timeout_seconds=30
+                            timeout_seconds=10
                         )
                         if not text:
                             text = ""
                     except TimeoutException:
-                        logger.warning("pdfminer extraction timed out after 30s")
+                        logger.warning("pdfminer extraction timed out after 10s")
                         text = ""
                     except Exception as e:
                         logger.warning(f"pdfminer extraction failed: {e}")
@@ -126,22 +180,21 @@ class ResumeParser:
 
                 # If text is still too short and OCR is enabled, try OCR
                 if use_ocr and len(text.strip()) < 100 and ocr_service.available:
-                    logger.info("PDF text too short, attempting OCR with 60s timeout")
+                    logger.info("PDF text too short, attempting OCR with 20s timeout")
                     try:
                         ocr_text = run_with_timeout(
                             lambda: ocr_service.extract_text_from_pdf(content),
-                            timeout_seconds=60
+                            timeout_seconds=20
                         )
                         if ocr_text:
                             text = ocr_text
                     except TimeoutException:
-                        logger.warning("OCR extraction timed out after 60s")
+                        logger.warning("OCR extraction timed out after 20s")
                     except Exception as e:
                         logger.warning(f"OCR extraction failed: {e}")
 
                 return text
-            elif "word" in mime_type.lower() or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                return self._extract_docx_text(content)
+
             elif "text" in mime_type.lower():
                 return content.decode("utf-8", errors="ignore")
             else:
@@ -268,86 +321,103 @@ class ResumeParser:
 
     def _extract_text_for_llm(self, content: bytes, mime_type: str, fallback_text: str) -> str:
         """Extract layout-aware text for LLM input based on document type."""
+        # For Word documents, we'll already have converted them to PDF in _extract_text
+        # So fallback_text will be the PDF-extracted text, which is good for LLM
+        if "word" in mime_type.lower() or mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+            # Word documents are already converted to PDF in _extract_text, use fallback
+            return fallback_text
+
         if "pdf" in mime_type.lower():
+            # Skip duplicate layout extraction if primary extraction already has sufficient text
+            # This saves 10+ seconds per CV
+            if fallback_text and len(fallback_text.strip()) >= 500:
+                logger.info("Primary extraction has sufficient text, skipping duplicate layout-aware extraction")
+                return fallback_text
+
             try:
+                logger.info("Primary text was short, attempting layout-aware extraction with 10s timeout")
                 return run_with_timeout(
                     lambda: self._extract_pdf_layout_text(content),
-                    timeout_seconds=30
+                    timeout_seconds=10
                 ) or fallback_text
             except TimeoutException:
-                logger.warning("Layout-aware PDF extraction timed out, using fallback text")
+                logger.warning("Layout-aware PDF extraction timed out after 10s, using fallback text")
             except Exception as e:
                 logger.warning(f"Layout-aware PDF extraction failed, using fallback text: {e}")
             return fallback_text
-        if "word" in mime_type.lower() or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            try:
-                return self._extract_docx_text(content) or fallback_text
-            except Exception as e:
-                logger.warning(f"Structured DOCX extraction failed, using fallback text: {e}")
-                return fallback_text
+
         return fallback_text
 
-    def _choose_best_text(self, primary_text: str, layout_text: str) -> str:
-        """Choose the most informative text between primary and layout-aware extraction."""
-        primary = primary_text or ""
-        layout = layout_text or ""
-
-        if not primary and not layout:
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for better parsing"""
+        if not text:
             return ""
-        if not primary:
-            return layout
-        if not layout:
-            return primary
 
-        primary_score = self._score_text_quality(primary)
-        layout_score = self._score_text_quality(layout)
+        # Remove excessive whitespace (but preserve paragraph structure)
+        text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces/tabs to single space
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Multiple newlines to double newline
 
-        if layout_score > primary_score * 1.15:
-            logger.info("Using layout-aware text for parsing due to higher quality score")
-            return layout
-        return primary
+        # Normalize section headers - ensure blank lines before major sections
+        section_keywords = [
+            'SUMMARY', 'OBJECTIVE', 'PROFILE',
+            'EXPERIENCE', 'EMPLOYMENT', 'WORK HISTORY', 'PROFESSIONAL EXPERIENCE',
+            'EDUCATION', 'ACADEMIC BACKGROUND',
+            'SKILLS', 'TECHNICAL SKILLS', 'CORE COMPETENCIES',
+            'CERTIFICATIONS', 'CERTIFICATES',
+            'PROJECTS'
+        ]
 
-    def _score_text_quality(self, text: str) -> float:
-        """Score text quality based on length and alphanumeric density."""
-        stripped = text.strip()
-        if not stripped:
-            return 0.0
-        length = len(stripped)
-        alnum = sum(ch.isalnum() for ch in stripped)
-        density = alnum / max(length, 1)
-        lines = len([line for line in stripped.splitlines() if line.strip()])
-        return length * density + lines * 2
+        for keyword in section_keywords:
+            # Case-insensitive replacement with proper spacing
+            pattern = r'(\n|^)(' + keyword + r')(\s*:?\s*\n)'
+            text = re.sub(pattern, r'\n\n\2\3', text, flags=re.IGNORECASE)
 
-    def _normalize_text_for_parsing(self, text: str) -> str:
-        """Normalize text to improve regex-based section detection."""
-        normalized = text.replace("\r\n", "\n").replace("\r", "\n").replace("\t", " ")
-        normalized = re.sub(r"[ \xa0]{2,}", " ", normalized)
-        normalized = re.sub(r"(?m)^[ \t]+", "", normalized)
+        # Clean up extra spaces around punctuation
+        text = re.sub(r'\s+([,;.])', r'\1', text)
 
-        def _heading_repl(match: re.Match[str]) -> str:
-            heading = match.group(1)
-            return f"{heading}\n"
+        return text.strip()
 
-        normalized = re.sub(
-            r"(?im)^(summary|objective|profile|skills|experience|employment|work history|education|certifications?)\s*[-:]\s+",
-            _heading_repl,
-            normalized,
-        )
-        normalized = re.sub(r"(?m)\n{3,}", "\n\n", normalized)
-        return normalized.strip()
+    def _validate_parsed_data(self, parsed: dict) -> tuple[bool, list[str]]:
+        """
+        Validate if parsing produced meaningful results.
+        Returns (is_valid, list_of_issues)
+        """
+        issues = []
+
+        # Check name
+        if not parsed.get("name") or parsed["name"] == "Unknown":
+            issues.append("No name extracted")
+
+        # Check contact info
+        if not parsed.get("email") and not parsed.get("phone"):
+            issues.append("No contact information (email/phone) extracted")
+
+        # Check content
+        has_skills = parsed.get("skills") and len(parsed["skills"]) > 0
+        has_experience = parsed.get("experience") and len(parsed["experience"]) > 0
+        has_text = len(parsed.get("raw_text", "")) > 200
+
+        if not has_skills and not has_experience and not has_text:
+            issues.append("No meaningful content extracted (no skills, experience, or text)")
+
+        is_valid = len(issues) == 0
+        return is_valid, issues
 
     def _parse_with_regex(self, text: str) -> Dict[str, Any]:
         """Parse structured sections using regex."""
+        # Normalize text before parsing
+        normalized_text = self._normalize_text(text)
+
         return {
-            "summary": self._extract_summary(text),
-            "skills": self._extract_skills(text),
-            "experience": self._extract_experience(text),
-            "education": self._extract_education(text),
-            "certifications": self._extract_certifications(text),
-            "name": self._extract_name(text),
-            "email": self._extract_email(text),
-            "phone": self._extract_phone(text),
-            "location": self._extract_location(text),
+            "summary": self._extract_summary(normalized_text),
+            "skills": self._extract_skills(normalized_text),
+            "experience": self._extract_experience(normalized_text),
+            "education": self._extract_education(normalized_text),
+            "certifications": self._extract_certifications(normalized_text),
+            "name": self._extract_name(normalized_text),
+            "email": self._extract_email(normalized_text),
+            "phone": self._extract_phone(normalized_text),
+            "location": self._extract_location(normalized_text),
             "raw_text": text,
         }
 
@@ -497,27 +567,43 @@ class ResumeParser:
     def _extract_skills(self, text: str) -> List[str]:
         """Extract skills from text"""
         skills = []
-        # Look for skills section
+
+        # Look for skills section with more flexible patterns
         match = re.search(
-            r"(?i)(?:skills|technical skills|technologies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications)|\Z)",
+            r"(?i)(?:technical\s+skills?|skills?|core\s+competencies|technologies|expertise|proficiencies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications?|employment|projects?)|\Z)",
             text,
             re.DOTALL,
         )
         if match:
             skills_text = match.group(1)
             # Split by common separators
-            tokens = re.split(r"[,;•\|\n]", skills_text)
+            tokens = re.split(r"[,;•\|\n\t]", skills_text)
             for token in tokens:
                 skill = token.strip()
-                if skill and len(skill) > 1 and len(skill) < 50:
+                # Filter out noise
+                if skill and 2 < len(skill) < 50 and not skill.lower().startswith(("experience", "proficient", "knowledge")):
                     skills.append(skill.lower())
 
-        # Also look for inline skills patterns
-        tech_keywords = re.findall(
-            r"\b(?:python|java|javascript|typescript|react|node|docker|kubernetes|aws|azure|gcp|sql|nosql|terraform|ansible|jenkins|git|ci/cd)\b",
-            text,
-            re.IGNORECASE,
-        )
+        # Comprehensive tech keyword search
+        tech_keywords_pattern = r"\b(?:" + "|".join([
+            # Programming Languages
+            "python", "java", "javascript", "typescript", "c\\+\\+", "c#", "ruby", "go", "golang", "rust", "php", "swift", "kotlin", "scala", "perl", "r",
+            # Web Frontend
+            "react", "angular", "vue", "svelte", "html", "css", "sass", "scss", "tailwind", "bootstrap", "jquery",
+            # Backend/Frameworks
+            "node\\.?js", "express", "django", "flask", "fastapi", "spring", "rails", "laravel", "asp\\.net",
+            # Databases
+            "sql", "mysql", "postgresql", "postgres", "mongodb", "redis", "cassandra", "dynamodb", "elasticsearch", "oracle", "mssql",
+            # Cloud/DevOps
+            "aws", "azure", "gcp", "docker", "kubernetes", "k8s", "terraform", "ansible", "jenkins", "gitlab", "github", "circleci",
+            "ci/cd", "devops", "cloudformation",
+            # Data/ML
+            "pandas", "numpy", "tensorflow", "pytorch", "scikit-learn", "spark", "hadoop", "kafka", "airflow",
+            # Tools/Other
+            "git", "linux", "bash", "powershell", "api", "rest", "graphql", "microservices", "agile", "scrum", "jira"
+        ]) + r")\b"
+
+        tech_keywords = re.findall(tech_keywords_pattern, text, re.IGNORECASE)
         skills.extend([k.lower() for k in tech_keywords])
 
         return list(set(skills))[:50]
@@ -525,9 +611,10 @@ class ResumeParser:
     def _extract_experience(self, text: str) -> List[Dict[str, Any]]:
         """Extract work experience"""
         experience = []
-        # Look for experience section
+
+        # Look for experience section with flexible patterns
         match = re.search(
-            r"(?i)(?:experience|employment|work history)[\s:]*\n(.*?)(?=\n(?:education|certifications|skills)|\Z)",
+            r"(?i)(?:professional\s+experience|work\s+experience|experience|employment\s+history|employment|work\s+history|career\s+history)[\s:]*\n(.*?)(?=\n\s*(?:education|certifications?|skills?|projects?)|\Z)",
             text,
             re.DOTALL,
         )
@@ -605,7 +692,7 @@ class ResumeParser:
         """Extract education"""
         education = []
         match = re.search(
-            r"(?i)(?:education)[\s:]*\n(.*?)(?=\n(?:experience|certifications|skills)|\Z)",
+            r"(?i)(?:education|academic\s+background|qualifications?)[\s:]*\n(.*?)(?=\n\s*(?:experience|certifications?|skills?|projects?)|\Z)",
             text,
             re.DOTALL,
         )
@@ -644,13 +731,33 @@ class ResumeParser:
         return certs
 
     def _extract_name(self, text: str) -> str:
-        """Extract candidate name (usually first line)"""
+        """Extract candidate name (usually at top of CV)"""
         lines = [l.strip() for l in text.split("\n") if l.strip()]
-        if lines:
-            first_line = lines[0]
-            # Name is usually the first line, not too long
-            if len(first_line) < 50 and not "@" in first_line:
-                return first_line
+
+        # Try first 10 lines to find a name
+        for i, line in enumerate(lines[:10]):
+            # Skip likely header/non-name lines
+            if len(line) < 3 or len(line) > 60:
+                continue
+            if "@" in line or "http" in line.lower():
+                continue
+            if line.isupper() and len(line) > 30:  # Skip all-caps headers
+                continue
+            if any(word in line.lower() for word in ["resume", "curriculum", "vitae", "cv", "page"]):
+                continue
+
+            # Look for name pattern: Capitalized words (2-4 words typical)
+            words = line.split()
+            if 2 <= len(words) <= 5:
+                # Check if words start with capital letters
+                if all(word[0].isupper() for word in words if len(word) > 1):
+                    return line
+
+        # Fallback: first non-header line
+        for line in lines[:5]:
+            if len(line) < 50 and not "@" in line and not line.isupper():
+                return line
+
         return "Unknown"
 
     def _extract_email(self, text: str) -> Optional[str]:
@@ -661,18 +768,27 @@ class ResumeParser:
         return None
 
     def _extract_phone(self, text: str) -> Optional[str]:
-        """Extract phone number"""
-        # Common phone number patterns
+        """Extract phone number with improved patterns"""
+        # Comprehensive phone number patterns
         patterns = [
-            r"\+?1?\s*\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})",  # US format: (123) 456-7890, 123-456-7890, +1 123 456 7890
-            r"\+?\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}",  # International formats
+            # US formats
+            r"\+?1?[\s.-]?\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})",  # (123) 456-7890, 123-456-7890, +1-123-456-7890
+            # International formats
+            r"\+\d{1,3}[\s.-]?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}",  # +XX XXX XXX XXXX
+            # Indian format
+            r"\+?91[\s.-]?\d{5}[\s.-]?\d{5}",  # +91 XXXXX XXXXX
+            # Generic 10-digit
+            r"\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b",  # XXX XXX XXXX or XXX-XXX-XXXX
         ]
 
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
-                # Return the full matched phone number
-                return match.group(0).strip()
+                phone = match.group(0).strip()
+                # Basic validation: should have at least 10 digits
+                digits_only = re.sub(r'\D', '', phone)
+                if len(digits_only) >= 10:
+                    return phone
         return None
 
     def _extract_location(self, text: str) -> Optional[str]:
@@ -683,14 +799,116 @@ class ResumeParser:
             return match.group(0)
         return None
 
+    def _apply_normalization(self, parsed: dict) -> dict:
+        """
+        Apply ontology-based normalization to extracted data.
+        - Normalizes skills and certifications to canonical forms
+        - Detects skills mentioned in full text and experience entries
+        - Adds: skills_normalized, certifications_normalized, skills_map, certifications_map
+        - Enhances experience entries with skills_normalized and skills_map
+        """
+        try:
+            # Import normalize service (lazy load to avoid circular imports)
+            from app.services.normalize import NormalizeService
+
+            # Load ontology (default staffing agent)
+            normalize_service = NormalizeService(
+                skills_csv="./config/skills.csv",
+                aliases_csv="./config/aliases.csv",
+                certs_csv="./config/certs.csv"
+            )
+
+            # Keep raw extracted lists
+            skills_raw = parsed.get("skills", [])
+            certs_raw = parsed.get("certifications", [])
+
+            # Normalize skills list
+            skills_normalized = normalize_service.normalize_skills(skills_raw)
+
+            # Also detect skills from full text (catches mentions not explicitly listed)
+            raw_text = parsed.get("raw_text", "")
+            text_skill_matches = normalize_service.find_skills_in_text(raw_text)
+            text_skills = {m["canonical"] for m in text_skill_matches}
+
+            # Merge: explicit + detected from text
+            all_skills_set = set(skills_normalized) | text_skills
+            skills_normalized_final = sorted(all_skills_set)
+
+            # Build skills map (evidence for each skill)
+            skills_map = []
+            for skill in skills_normalized_final:
+                # Find evidence (from raw list or text detection)
+                evidence = []
+                for raw_skill in skills_raw:
+                    if normalize_service._norm(raw_skill) in normalize_service._norm(skill) or \
+                       normalize_service.normalize_skill(raw_skill) == skill:
+                        evidence.append(f"explicit: '{raw_skill}'")
+
+                for match in text_skill_matches:
+                    if match["canonical"] == skill:
+                        evidence.append(match["evidence"])
+
+                skills_map.append({
+                    "canonical": skill,
+                    "confidence": 0.95 if evidence else 0.80,
+                    "evidence": "; ".join(evidence[:3]) if evidence else "detected in text"
+                })
+
+            # Normalize certifications
+            certs_normalized = normalize_service.normalize_certs(certs_raw)
+
+            # Build certs map
+            certs_map = []
+            for cert in certs_normalized:
+                # Find original mention
+                raw_match = [c for c in certs_raw if normalize_service.normalize_cert(c) == cert]
+                evidence = f"explicit: '{raw_match[0]}'" if raw_match else "normalized"
+                certs_map.append({
+                    "canonical": cert,
+                    "confidence": 0.95,
+                    "evidence": evidence
+                })
+
+            # Enhance experience entries with per-role skill detection
+            experience_enhanced = []
+            for exp in parsed.get("experience", []):
+                exp_enhanced = normalize_service.normalize_experience_skills(exp)
+                experience_enhanced.append(exp_enhanced)
+
+            # Update parsed dict
+            parsed["skills_normalized"] = skills_normalized_final
+            parsed["certifications_normalized"] = certs_normalized
+            parsed["skills_map"] = skills_map
+            parsed["certifications_map"] = certs_map
+            parsed["experience"] = experience_enhanced
+
+            logger.info(f"Normalization complete: {len(skills_raw)} raw skills → "
+                       f"{len(skills_normalized_final)} normalized (including {len(text_skills)} detected from text), "
+                       f"{len(certs_raw)} raw certs → {len(certs_normalized)} normalized")
+
+        except Exception as e:
+            logger.error(f"Normalization failed: {e}")
+            import traceback
+            logger.debug(f"Normalization traceback: {traceback.format_exc()}")
+
+            # Fallback: add empty normalized fields
+            parsed["skills_normalized"] = parsed.get("skills", [])
+            parsed["certifications_normalized"] = parsed.get("certifications", [])
+            parsed["skills_map"] = []
+            parsed["certifications_map"] = []
+
+        return parsed
+
     def _empty_result(self) -> dict:
         """Return empty parsed result"""
         return {
             "summary": "",
             "skills": [],
+            "skills_normalized": [],
             "experience": [],
             "education": [],
             "certifications": [],
+            "certifications_normalized": [],
             "name": "Unknown",
             "email": None,
             "phone": None,

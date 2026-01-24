@@ -262,6 +262,12 @@ export default function CandidateDetail() {
                 <span className="text-sm font-medium text-gray-600">Type:</span>
                 <span className="text-sm text-gray-900">{candidate.document_mime_type || 'N/A'}</span>
               </div>
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-600">Embeddings:</span>
+                <span className={`text-sm font-medium ${candidate.embeddings_count > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {candidate.embeddings_count}
+                </span>
+              </div>
               <div className="pt-3 border-t border-gray-100">
                 <p className="text-xs text-gray-500">
                   ID: {candidate.document_id}

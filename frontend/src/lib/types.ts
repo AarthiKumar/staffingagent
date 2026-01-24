@@ -85,6 +85,7 @@ export interface CandidateListItem {
   location?: string;
   updated_at: string;
   document_filename?: string;
+  embeddings_count: number;
   availability_from?: string;
   capacity_pct?: number;
 }
@@ -119,6 +120,7 @@ export interface CandidateFullDetail {
   document_id: string;
   document_filename?: string;
   document_mime_type?: string;
+  embeddings_count: number;
   availability: AvailabilityDetail[];
   sections: SectionDetail[];
 }

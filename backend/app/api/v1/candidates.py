@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.logging import get_logger
 from app.db.session import get_db
-from app.models import Availability, Candidate, Document, Section
+from app.models import Availability, Candidate, Document, Section, Embedding
 
 logger = get_logger(__name__)
 
@@ -26,6 +26,7 @@ class CandidateListItem(BaseModel):
     location: Optional[str]
     updated_at: str
     document_filename: Optional[str]
+    embeddings_count: int
     availability_from: Optional[str]
     capacity_pct: Optional[int]
 
@@ -68,6 +69,7 @@ class CandidateFullDetail(BaseModel):
     document_id: str
     document_filename: Optional[str]
     document_mime_type: Optional[str]
+    embeddings_count: int
     availability: List[AvailabilityDetail]
     sections: List[SectionDetail]
 
@@ -106,7 +108,7 @@ def list_candidates(
     offset = (page - 1) * page_size
     candidates = query.order_by(Candidate.updated_at.desc()).offset(offset).limit(page_size).all()
 
-    # Build response with availability info
+    # Build response with availability info and embeddings count
     result_items = []
     for candidate in candidates:
         # Get earliest availability
@@ -117,6 +119,13 @@ def list_candidates(
             .first()
         )
 
+        # Get embeddings count
+        embeddings_count = (
+            db.query(func.count(Embedding.id))
+            .filter(Embedding.document_id == candidate.document_id)
+            .scalar()
+        ) or 0
+
         result_items.append(
             CandidateListItem(
                 id=str(candidate.id),
@@ -125,6 +134,7 @@ def list_candidates(
                 location=candidate.location,
                 updated_at=candidate.updated_at.isoformat(),
                 document_filename=candidate.document.filename if candidate.document else None,
+                embeddings_count=embeddings_count,
                 availability_from=avail.available_from.isoformat() if avail else None,
                 capacity_pct=avail.capacity_pct if avail else None,
             )
@@ -182,6 +192,13 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
         .all()
     )
 
+    # Get embeddings count
+    embeddings_count = (
+        db.query(func.count(Embedding.id))
+        .filter(Embedding.document_id == candidate.document_id)
+        .scalar()
+    ) or 0
+
     return CandidateFullDetail(
         id=str(candidate.id),
         name=candidate.name,
@@ -191,6 +208,7 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
         document_id=str(candidate.document_id),
         document_filename=candidate.document.filename if candidate.document else None,
         document_mime_type=candidate.document.mime_type if candidate.document else None,
+        embeddings_count=embeddings_count,
         availability=[
             AvailabilityDetail(
                 id=str(a.id),
