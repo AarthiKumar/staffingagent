@@ -179,6 +179,17 @@ def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Parsing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Parsing failed: {e}")
+    else:
+        logger.info(
+            "Parsed resume summary - name: %s, summary_len: %s, skills: %s, experience: %s, education: %s, certs: %s, raw_len: %s",
+            parsed.get("name"),
+            len(parsed.get("summary", "")),
+            len(parsed.get("skills", [])),
+            len(parsed.get("experience", [])),
+            len(parsed.get("education", [])),
+            len(parsed.get("certifications", [])),
+            len(parsed.get("raw_text", "") or ""),
+        )
 
     # Override with manual fields if provided
     if req.manual_name:
