@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ interface ManualInputDialogProps {
   onSubmit: (data: { name?: string; email?: string; phone?: string }) => void;
   missingFields: string[];
   filename: string;
+  initialValues?: { name?: string; email?: string; phone?: string };
 }
 
 export function ManualInputDialog({
@@ -26,10 +27,18 @@ export function ManualInputDialog({
   onSubmit,
   missingFields,
   filename,
+  initialValues,
 }: ManualInputDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setName(initialValues?.name ?? '');
+    setEmail(initialValues?.email ?? '');
+    setPhone(initialValues?.phone ?? '');
+  }, [open, initialValues?.name, initialValues?.email, initialValues?.phone]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
