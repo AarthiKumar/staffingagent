@@ -367,7 +367,7 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         db.add(sec)
         logger.info("Created summary section")
 
-    # Skills section
+    # Skills section - store both raw and normalized
     if parsed.get("skills"):
         skills_text = ", ".join(parsed["skills"])
         sec = Section(
@@ -377,12 +377,30 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
-        logger.info(f"Created skills section with {len(parsed['skills'])} skills")
+        logger.info(f"Created skills section with {len(parsed['skills'])} raw skills")
 
-    # Experience sections
+    # Skills normalized section - canonical ontology forms
+    if parsed.get("skills_normalized"):
+        skills_norm_text = ", ".join(parsed["skills_normalized"])
+        sec = Section(
+            document_id=document_id,
+            type="skills_normalized",
+            text=skills_norm_text,
+        )
+        sections.append(sec)
+        db.add(sec)
+        logger.info(f"Created normalized skills section with {len(parsed['skills_normalized'])} canonical skills")
+
+    # Experience sections - include detected skills per role
     for idx, exp in enumerate(parsed.get("experience", [])):
+        # Main experience text
         exp_text = f"{exp.get('org', '')} - {exp.get('role', '')}\n"
         exp_text += "\n".join(exp.get("bullets", []))
+
+        # Add detected skills for this experience if available
+        if exp.get("skills_normalized"):
+            exp_text += f"\n\n[Skills detected: {', '.join(exp['skills_normalized'])}]"
+
         sec = Section(
             document_id=document_id,
             type="experience",
@@ -391,9 +409,9 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         sections.append(sec)
         db.add(sec)
     if parsed.get("experience"):
-        logger.info(f"Created {len(parsed['experience'])} experience sections")
+        logger.info(f"Created {len(parsed['experience'])} experience sections with per-role skill detection")
 
-    # Certifications section
+    # Certifications section - raw
     if parsed.get("certifications"):
         certs_text = "\n".join(parsed["certifications"])
         sec = Section(
@@ -403,7 +421,19 @@ def _create_sections(db: Session, document_id: uuid.UUID, parsed: dict) -> list[
         )
         sections.append(sec)
         db.add(sec)
-        logger.info(f"Created certifications section with {len(parsed['certifications'])} certs")
+        logger.info(f"Created certifications section with {len(parsed['certifications'])} raw certs")
+
+    # Certifications normalized section - canonical ontology forms
+    if parsed.get("certifications_normalized"):
+        certs_norm_text = "\n".join(parsed["certifications_normalized"])
+        sec = Section(
+            document_id=document_id,
+            type="certifications_normalized",
+            text=certs_norm_text,
+        )
+        sections.append(sec)
+        db.add(sec)
+        logger.info(f"Created normalized certifications section with {len(parsed['certifications_normalized'])} canonical certs")
 
     # Full document section - ALWAYS create this if we have any text
     raw_text = parsed.get("raw_text", "")
