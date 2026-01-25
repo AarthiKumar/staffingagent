@@ -224,6 +224,7 @@ class APIClient {
     type: string;
     text: string;
     updated: boolean;
+    embeddings_regenerated: boolean;
   }> {
     return this.request(`/sections/${sectionId}`, {
       method: 'PUT',

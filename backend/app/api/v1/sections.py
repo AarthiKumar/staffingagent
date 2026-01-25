@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.db.session import get_db
-from app.models import Section, Document, Candidate
+from app.models import Section, Document, Candidate, Embedding
+from app.services.embeddings import get_embeddings_service
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,7 @@ class SectionUpdateResponse(BaseModel):
     type: str
     text: str
     updated: bool
+    embeddings_regenerated: bool
 
 
 @router.put("/{section_id}", response_model=SectionUpdateResponse)
@@ -36,10 +38,11 @@ def update_section(
     update_data: SectionUpdateRequest,
     db: Session = Depends(get_db),
 ):
-    """Update a section's text content
+    """Update a section's text content and regenerate embeddings
 
     Allows editing of CV sections like skills, certifications, experience, etc.
-    This does NOT regenerate embeddings - use the re-embed endpoint for that.
+    Automatically regenerates embeddings for the updated section to maintain
+    semantic search accuracy.
     """
     try:
         section_uuid = UUID(section_id)
@@ -68,6 +71,11 @@ def update_section(
         db.commit()
         db.refresh(section)
 
+        # Get document for agent_id (needed for embeddings)
+        document = db.query(Document).filter(Document.id == section.document_id).first()
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
         # Also update the candidate's updated_at timestamp
         candidate = (
             db.query(Candidate)
@@ -85,11 +93,51 @@ def update_section(
             f"old_length={len(old_text)}, new_length={len(update_data.text)}"
         )
 
+        # Regenerate embeddings for the updated section
+        embeddings_regenerated = False
+        try:
+            # Delete old embeddings for this section
+            old_embeddings = db.query(Embedding).filter(Embedding.section_id == section.id).all()
+            for emb in old_embeddings:
+                db.delete(emb)
+            db.flush()
+
+            logger.info(f"Deleted {len(old_embeddings)} old embeddings for section {section_id}")
+
+            # Generate new embeddings
+            embeddings_service = get_embeddings_service()
+            vectors = embeddings_service.embed_texts([section.text], document.agent_id)
+            dim = embeddings_service.get_dimension()
+
+            # Store new embedding
+            if vectors and len(vectors) > 0:
+                new_embedding = Embedding(
+                    document_id=document.id,
+                    section_id=section.id,
+                    agent_id=document.agent_id,
+                    model=embeddings_service.model,
+                    dim=dim,
+                    vector=vectors[0].tolist(),
+                )
+                db.add(new_embedding)
+                db.commit()
+                embeddings_regenerated = True
+                logger.info(f"Successfully regenerated embedding for section {section_id} (dim={dim})")
+            else:
+                logger.warning(f"No vectors generated for section {section_id}")
+
+        except Exception as e:
+            # Log error but don't fail the update - text was already saved
+            logger.error(f"Failed to regenerate embeddings for section {section_id}: {e}")
+            logger.warning("Section text was updated but embeddings were not regenerated")
+            # Don't rollback - we want to keep the text update
+
         return SectionUpdateResponse(
             id=str(section.id),
             type=section.type,
             text=section.text,
             updated=True,
+            embeddings_regenerated=embeddings_regenerated,
         )
 
     except Exception as e:

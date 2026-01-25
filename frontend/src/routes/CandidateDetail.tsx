@@ -32,6 +32,7 @@ export default function CandidateDetail() {
   });
   const [editingSections, setEditingSections] = useState<Record<string, string>>({});
   const [sectionTexts, setSectionTexts] = useState<Record<string, string>>({});
+  const [embeddingsSuccess, setEmbeddingsSuccess] = useState<string | null>(null);
 
   const { data: candidate, isLoading, error } = useQuery({
     queryKey: ['candidate', id],
@@ -52,10 +53,16 @@ export default function CandidateDetail() {
   const updateSectionMutation = useMutation({
     mutationFn: ({ sectionId, text }: { sectionId: string; text: string }) =>
       apiClient.updateSection(sectionId, text),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['candidate', id] });
       setEditingSections({});
       setSectionTexts({});
+
+      // Show success message if embeddings were regenerated
+      if (data.embeddings_regenerated) {
+        setEmbeddingsSuccess('Section updated and embeddings regenerated successfully!');
+        setTimeout(() => setEmbeddingsSuccess(null), 5000);
+      }
     },
   });
 
@@ -220,6 +227,19 @@ export default function CandidateDetail() {
       {updateMutation.isError && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           Error updating candidate: {updateMutation.error.message}
+        </div>
+      )}
+
+      {/* Embeddings Success Message */}
+      {embeddingsSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex items-center justify-between">
+          <span>{embeddingsSuccess}</span>
+          <button
+            onClick={() => setEmbeddingsSuccess(null)}
+            className="text-green-700 hover:text-green-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
