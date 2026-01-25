@@ -215,6 +215,30 @@ class APIClient {
       body: JSON.stringify(data),
     });
   }
+
+  async updateSection(
+    sectionId: string,
+    text: string
+  ): Promise<{
+    id: string;
+    type: string;
+    text: string;
+    updated: boolean;
+  }> {
+    return this.request(`/sections/${sectionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async deleteSection(sectionId: string): Promise<{
+    id: string;
+    deleted: boolean;
+  }> {
+    return this.request(`/sections/${sectionId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiClient = new APIClient(API_BASE_URL);

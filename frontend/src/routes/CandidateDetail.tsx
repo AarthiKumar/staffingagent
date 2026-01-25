@@ -5,6 +5,7 @@ import { apiClient } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import {
   ArrowLeft,
   Edit,
@@ -16,6 +17,7 @@ import {
   FileText,
   Calendar,
   Briefcase,
+  Trash2,
 } from 'lucide-react';
 
 export default function CandidateDetail() {
@@ -28,6 +30,8 @@ export default function CandidateDetail() {
     email: '',
     location: '',
   });
+  const [editingSections, setEditingSections] = useState<Record<string, string>>({});
+  const [sectionTexts, setSectionTexts] = useState<Record<string, string>>({});
 
   const { data: candidate, isLoading, error } = useQuery({
     queryKey: ['candidate', id],
@@ -42,6 +46,23 @@ export default function CandidateDetail() {
       queryClient.invalidateQueries({ queryKey: ['candidate', id] });
       queryClient.invalidateQueries({ queryKey: ['candidates'] });
       setIsEditing(false);
+    },
+  });
+
+  const updateSectionMutation = useMutation({
+    mutationFn: ({ sectionId, text }: { sectionId: string; text: string }) =>
+      apiClient.updateSection(sectionId, text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', id] });
+      setEditingSections({});
+      setSectionTexts({});
+    },
+  });
+
+  const deleteSectionMutation = useMutation({
+    mutationFn: (sectionId: string) => apiClient.deleteSection(sectionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', id] });
     },
   });
 
@@ -78,6 +99,37 @@ export default function CandidateDetail() {
 
   const handleCancel = () => {
     setIsEditing(false);
+  };
+
+  const handleEditSection = (sectionId: string, currentText: string) => {
+    setEditingSections(prev => ({ ...prev, [sectionId]: 'editing' }));
+    setSectionTexts(prev => ({ ...prev, [sectionId]: currentText }));
+  };
+
+  const handleSaveSection = (sectionId: string) => {
+    const text = sectionTexts[sectionId];
+    if (text !== undefined) {
+      updateSectionMutation.mutate({ sectionId, text });
+    }
+  };
+
+  const handleCancelSectionEdit = (sectionId: string) => {
+    setEditingSections(prev => {
+      const newState = { ...prev };
+      delete newState[sectionId];
+      return newState;
+    });
+    setSectionTexts(prev => {
+      const newState = { ...prev };
+      delete newState[sectionId];
+      return newState;
+    });
+  };
+
+  const handleDeleteSection = (sectionId: string, sectionType: string) => {
+    if (confirm(`Are you sure you want to delete the "${sectionType}" section? This action cannot be undone.`)) {
+      deleteSectionMutation.mutate(sectionId);
+    }
   };
 
   if (isLoading) {
@@ -327,19 +379,87 @@ export default function CandidateDetail() {
 
             {candidate.sections.length > 0 ? (
               <div className="space-y-6">
-                {candidate.sections.map((section) => (
-                  <div key={section.id} className="border-b border-gray-100 pb-6 last:border-b-0">
-                    <h3 className="text-base font-semibold text-gray-900 mb-3 capitalize flex items-center">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                      {section.type.replace('_', ' ')}
-                    </h3>
-                    <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-lg p-4 border border-gray-100">
-                      <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
-                        {section.text}
-                      </pre>
+                {candidate.sections.map((section) => {
+                  const isEditingSection = editingSections[section.id] === 'editing';
+                  const canEdit = !['full', 'raw_text'].includes(section.type);
+
+                  return (
+                    <div key={section.id} className="border-b border-gray-100 pb-6 last:border-b-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-base font-semibold text-gray-900 capitalize flex items-center">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                          {section.type.replace('_', ' ')}
+                        </h3>
+                        {canEdit && !isEditingSection && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditSection(section.id, section.text)}
+                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                            {!['summary', 'skills', 'certifications'].includes(section.type) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteSection(section.id, section.type)}
+                                className="border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        {isEditingSection && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveSection(section.id)}
+                              disabled={updateSectionMutation.isPending}
+                              className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                            >
+                              <Save className="h-3 w-3 mr-1" />
+                              {updateSectionMutation.isPending ? 'Saving...' : 'Save'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCancelSectionEdit(section.id)}
+                              className="border-gray-300 hover:bg-gray-50"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {updateSectionMutation.isError && (
+                        <div className="mb-2 text-xs bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded">
+                          Error updating section: {updateSectionMutation.error.message}
+                        </div>
+                      )}
+                      <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-lg p-4 border border-gray-100">
+                        {isEditingSection ? (
+                          <Textarea
+                            value={sectionTexts[section.id] || ''}
+                            onChange={(e) =>
+                              setSectionTexts(prev => ({ ...prev, [section.id]: e.target.value }))
+                            }
+                            className="min-h-[200px] font-sans text-sm leading-relaxed border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            placeholder="Enter section content..."
+                          />
+                        ) : (
+                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
+                            {section.text}
+                          </pre>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500">No CV sections available</p>
