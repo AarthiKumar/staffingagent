@@ -1,104 +1,112 @@
 #!/usr/bin/env python3
-"""Reset database - delete all data and recreate tables
-
-This script:
-1. Drops all tables
-2. Recreates them using Alembic migrations
-3. Optionally loads sample data
-
-Usage:
-    python scripts/reset_database.py [--confirm]
-
-WARNING: This will DELETE ALL DATA in the database!
-"""
-
-import os
+"""Reset database - drops and recreates everything using SQLAlchemy"""
 import sys
+import os
 from pathlib import Path
 
-# Add backend to path and change to backend directory
+# Add backend to path
 backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
-os.chdir(str(backend_path))
+
+import argparse
+from sqlalchemy import create_engine, text
+from sqlalchemy_utils import database_exists, drop_database, create_database
+
+# Import settings to get DATABASE_URL
+from app.core.config import settings
 
 
-def reset_database(confirm: bool = False):
-    """Reset the database"""
-    from alembic import command
-    from alembic.config import Config
-    from sqlalchemy import text
-
-    from app.core.config import settings
-    from app.db.session import engine
-
-    print("=" * 80)
-    print("DATABASE RESET")
-    print("=" * 80)
-    print()
-    print(f"Database: {settings.database_url}")
-    print()
-
-    if not confirm:
-        print("⚠️  WARNING: This will DELETE ALL DATA in the database!")
-        print()
-        response = input("Are you sure you want to continue? Type 'DELETE ALL DATA' to confirm: ")
-
-        if response != "DELETE ALL DATA":
-            print("Cancelled.")
-            return 1
-
-    print()
-    print("Step 1: Dropping all tables...")
-
-    try:
-        with engine.connect() as conn:
-            # Drop all tables
-            conn.execute(text("""
-                DROP SCHEMA public CASCADE;
-                CREATE SCHEMA public;
-                GRANT ALL ON SCHEMA public TO postgres;
-                GRANT ALL ON SCHEMA public TO public;
-            """))
-            conn.commit()
-
-        print("✓ All tables dropped")
-    except Exception as e:
-        print(f"✗ Error dropping tables: {e}")
-        return 1
-
-    print()
-    print("Step 2: Running migrations...")
-
-    try:
-        # Run Alembic migrations
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-
-        print("✓ Migrations completed")
-    except Exception as e:
-        print(f"✗ Error running migrations: {e}")
-        return 1
-
-    print()
-    print("=" * 80)
-    print("✅ DATABASE RESET COMPLETE")
-    print("=" * 80)
-    print()
-    print("The database has been reset and is ready for use.")
-    print()
-
-    return 0
+def parse_args():
+    parser = argparse.ArgumentParser(description="Reset the staffing database")
+    parser.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help="Skip confirmation prompt"
+    )
+    return parser.parse_args()
 
 
 def main():
-    """Main entry point"""
-    confirm = "--confirm" in sys.argv
+    args = parse_args()
+
+    # Get database URL from settings
+    database_url = settings.database_url
+
+    # Parse database name for display
+    db_name = database_url.split("/")[-1]
+
+    print(f"📋 Database URL: {database_url.replace('postgres:', '***:')}")
+    print(f"📋 Database name: {db_name}")
+
+    # Confirm action
+    if not args.force:
+        print()
+        print(f"⚠️  WARNING: This will DELETE ALL DATA in the '{db_name}' database!")
+        response = input("Type 'yes' to continue, or anything else to cancel: ")
+        if response.lower() != "yes":
+            print("❌ Cancelled")
+            return 1
+
+    print()
 
     try:
-        return reset_database(confirm)
-    except Exception as e:
+        # Check if database exists
+        if database_exists(database_url):
+            print(f"🔌 Terminating active connections to '{db_name}'...")
+
+            # Connect to postgres database to terminate connections
+            postgres_url = "/".join(database_url.split("/")[:-1]) + "/postgres"
+            engine = create_engine(postgres_url, isolation_level="AUTOCOMMIT")
+
+            with engine.connect() as conn:
+                # Terminate active connections
+                result = conn.execute(text(f"""
+                    SELECT pg_terminate_backend(pg_stat_activity.pid)
+                    FROM pg_stat_activity
+                    WHERE pg_stat_activity.datname = '{db_name}'
+                      AND pid <> pg_backend_pid();
+                """))
+                terminated = sum(1 for row in result if row[0])
+                if terminated > 0:
+                    print(f"   Terminated {terminated} active connection(s)")
+                else:
+                    print("   No active connections found")
+
+            engine.dispose()
+
+            print(f"🗑️  Dropping database '{db_name}'...")
+            drop_database(database_url)
+            print("   ✓ Database dropped")
+        else:
+            print(f"ℹ️  Database '{db_name}' does not exist")
+
+        print(f"🆕 Creating fresh database '{db_name}'...")
+        create_database(database_url)
+        print("   ✓ Database created")
+
+        print("📦 Running alembic migrations...")
+        os.chdir(backend_path)
+        exit_code = os.system("alembic upgrade head")
+
+        if exit_code != 0:
+            print("❌ Migration failed!")
+            return 1
+
         print()
-        print(f"❌ ERROR: {e}")
+        print("✅ Database reset complete!")
+        print()
+        print("📊 Database info:")
+        print(f"   Database: {db_name}")
+        print()
+        print("Next steps:")
+        print("1. Restart your backend server")
+        print("2. Upload CVs to test the new setup")
+        print()
+
+        return 0
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
         import traceback
         traceback.print_exc()
         return 1
