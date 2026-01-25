@@ -114,12 +114,13 @@ class SearchService:
         # Generate query embedding
         query_embedding = self.embeddings_service.embed_single(query_text, self.agent_id)
 
-        # pgvector KNN search
+        # pgvector KNN search with grouping by document_id
         # We use cosine distance: 1 - cosine_similarity
-        query = (
+        # Group by document_id to avoid duplicates (one candidate per document with max similarity)
+        subquery = (
             select(
                 Embedding.document_id,
-                (1 - Embedding.vector.cosine_distance(query_embedding)).label("cosine_similarity"),
+                func.max(1 - Embedding.vector.cosine_distance(query_embedding)).label("max_similarity"),
             )
             .join(Document)
             .where(
@@ -130,11 +131,12 @@ class SearchService:
                     ),
                 )
             )
-            .order_by(text("cosine_similarity DESC"))
+            .group_by(Embedding.document_id)
+            .order_by(text("max_similarity DESC"))
             .limit(top_k)
         )
 
-        results = self.db.execute(query).all()
+        results = self.db.execute(subquery).all()
 
         # Build result dictionaries
         output = []
