@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.auth0 import User, require_project_manager
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Candidate, Availability, MetricsSearch
@@ -65,8 +66,15 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/", response_model=SearchResponse)
-def search_candidates(req: SearchRequest, db: Session = Depends(get_db)):
-    """Search for candidates with filters and optional semantic query"""
+def search_candidates(
+    req: SearchRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
+    """Search for candidates with filters and optional semantic query
+
+    Requires: project_manager or superuser role
+    """
 
     start_time = time.time()
     query_id = str(uuid.uuid4())
@@ -164,8 +172,15 @@ def search_candidates(req: SearchRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/candidates/{candidate_id}")
-def get_candidate_detail(candidate_id: str, db: Session = Depends(get_db)):
-    """Get detailed candidate information"""
+def get_candidate_detail(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
+    """Get detailed candidate information
+
+    Requires: project_manager or superuser role
+    """
 
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:

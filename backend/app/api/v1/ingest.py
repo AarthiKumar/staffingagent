@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.auth0 import User, get_current_user, require_project_manager
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Agent, Candidate, Document, Embedding, Section
@@ -53,8 +54,17 @@ class IngestResponse(BaseModel):
 
 
 @router.post("/", response_model=IngestResponse)
-def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
-    """Ingest a document (resume, etc.)"""
+def ingest_document(
+    req: IngestRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Ingest a document (resume, etc.)
+
+    Requires: Any authenticated user
+    - All users can upload CVs
+    - Staff should upload their own CVs (matched by email in manual fields)
+    """
 
     # Decode content
     try:
@@ -513,8 +523,15 @@ class MergeApprovalResponse(BaseModel):
 
 
 @router.post("/approve-merge", response_model=MergeApprovalResponse)
-def approve_merge(req: MergeApprovalRequest, db: Session = Depends(get_db)):
-    """Approve and apply CV merge for duplicate candidate"""
+def approve_merge(
+    req: MergeApprovalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
+    """Approve and apply CV merge for duplicate candidate
+
+    Requires: project_manager or superuser role
+    """
 
     try:
         merge_service = get_cv_merge_service(db)

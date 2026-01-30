@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     enable_llm_rerank: bool = Field(default=False, alias="ENABLE_LLM_RERANK")
     enable_nl_assist: bool = Field(default=False, alias="ENABLE_NL_ASSIST")
 
+    # Auth0 Configuration
+    auth0_enabled: bool = Field(default=False, alias="AUTH0_ENABLED")
+    auth0_domain: Optional[str] = Field(default=None, alias="AUTH0_DOMAIN")
+    auth0_client_id: Optional[str] = Field(default=None, alias="AUTH0_CLIENT_ID")
+    auth0_client_secret: Optional[str] = Field(default=None, alias="AUTH0_CLIENT_SECRET")
+    auth0_audience: Optional[str] = Field(default=None, alias="AUTH0_AUDIENCE")
+    auth0_callback_url: str = Field(
+        default="http://localhost:5173/callback", alias="AUTH0_CALLBACK_URL"
+    )
+
+    # Legacy OIDC (deprecated - use Auth0 settings above)
     oidc_enabled: bool = Field(default=False, alias="OIDC_ENABLED")
     oidc_issuer: Optional[str] = Field(default=None, alias="OIDC_ISSUER")
     oidc_client_id: Optional[str] = Field(default=None, alias="OIDC_CLIENT_ID")
