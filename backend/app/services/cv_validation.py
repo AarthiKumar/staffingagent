@@ -87,8 +87,9 @@ class CVDataValidator:
         skill_lower = skill.lower().strip()
         skill_clean = skill.strip()
 
-        # Basic length checks
-        if len(skill_clean) < 2 or len(skill_clean) > 100:
+        # Basic length checks - minimum 3 characters for generic skills
+        # (2-char skills like "go", "r" are caught by tech keyword matching in parser)
+        if len(skill_clean) < 3 or len(skill_clean) > 100:
             return False
 
         # Check if it's pure numbers (likely ID/passport)
