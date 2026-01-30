@@ -70,6 +70,12 @@ class CVDataValidator:
         "national id", "pan card", "aadhaar", "aadhar"
     ]
 
+    # Known valid 2-character technical terms
+    VALID_SHORT_SKILLS = {
+        "c#", "c++", "go", "r", "js", "ts", "ai", "ml", "ci", "cd",
+        "qa", "ui", "ux", "vr", "ar", "3d", "api", "sql", "css", "ios"
+    }
+
     @staticmethod
     def is_valid_skill(skill: str) -> bool:
         """
@@ -87,8 +93,12 @@ class CVDataValidator:
         skill_lower = skill.lower().strip()
         skill_clean = skill.strip()
 
+        # Check if it's a known valid short skill (e.g., c#, go, r)
+        if skill_lower in CVDataValidator.VALID_SHORT_SKILLS:
+            return True
+
         # Basic length checks - minimum 3 characters for generic skills
-        # (2-char skills like "go", "r" are caught by tech keyword matching in parser)
+        # (Known 2-char skills are whitelisted above)
         if len(skill_clean) < 3 or len(skill_clean) > 100:
             return False
 
