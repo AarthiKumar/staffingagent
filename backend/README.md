@@ -1,220 +1,220 @@
 # Staffing Agent Backend
 
-FastAPI backend with pgvector semantic search and optional LLM features.
+A FastAPI-based staffing agent for CV parsing, candidate search, and availability management.
 
-## Architecture
+## Quick Start
 
-```
-app/
-  api/v1/          - REST API endpoints
-  core/            - Config, logging, security, feature flags
-  models/          - SQLAlchemy ORM models
-  services/        - Business logic
-  db/              - Database session and init
-  telemetry/       - Prometheus metrics
-  tests/           - Unit and integration tests
+### Installation
+
+```bash
+cd backend
+
+# Install in editable mode with all dependencies
+pip install -e ".[dev]"
 ```
 
-## Database Schema
+This installs the package so the `app` module is importable from anywhere, solving all import errors.
 
-- **agents**: Multi-agent configuration
-- **documents**: Resume/CV metadata
-- **sections**: Document chunks
-- **embeddings**: pgvector embeddings with HNSW index
-- **candidates**: Candidate profiles
-- **availability**: Availability calendar
-- **ontology_***: Skills, certs, aliases
-- **decisions**: Hiring decisions
-- **llm_events**: LLM API call tracking
-- **metrics_search**: Search metrics
+### Run Tests
 
-## Ranking Formula
-
-```python
-score = (
-    w.cosine * cosine_similarity
-    + w.skills * skills_match_ratio
-    + w.cert * cert_bonus
-    + w.recency * recency_score
-)
+```bash
+pytest
 ```
 
-Weights configured per-agent in `config/agents/*.yaml`.
+### Start Server
 
-## Embeddings
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-Default: Local sentence-transformers (`BAAI/bge-small-en`, 384 dim).
+---
 
-To use OpenAI embeddings:
-1. Set `EMBEDDINGS_PROVIDER=openai`
-2. Implement `_embed_openai()` in `services/embeddings.py`
+## Installation Options
 
-## LLM Features
+### Option 1: Editable Install (Recommended for Development) ⭐
 
-### CV Data Extraction
-
-When `LLM_PROVIDER=openai` and `LLM_API_KEY` is set:
-- **Automatic extraction** of structured data from all uploaded CVs
-- Ensures **consistent extraction** across all documents:
-  - Basic Information: Name, Email, Location
-  - Professional Summary
-  - Skills (as keywords)
-  - Work Experience (with organization, role, dates, and bullet points)
-  - Certifications (as keywords)
-- Uses GPT-4o-mini for fast, cost-effective extraction
-- Falls back to regex-based extraction if LLM is disabled or fails
-- Test with: `python scripts/test_llm_extraction.py`
+```bash
+cd backend
+pip install -e ".[dev]"
+```
 
 **Benefits:**
-- More accurate than regex-based extraction
-- Handles various CV formats and layouts consistently
-- Extracts structured data suitable for semantic search
-- Better extraction of context and relationships
+- ✅ Makes `app` module importable system-wide
+- ✅ Code changes take effect immediately (no reinstall needed)
+- ✅ Includes dev tools (pytest, black, ruff, mypy)
+- ✅ Solves `ModuleNotFoundError: No module named 'app'`
 
-### Re-ranking
-
-When `ENABLE_LLM_RERANK=true`:
-- Top-K results sent to LLM with structured evidence (no PII, no full CVs)
-- 700ms timeout
-- Fallback to baseline on error
-- Logged to `llm_events` table
-
-### NL→Filters Assistant
-
-When `ENABLE_NL_ASSIST=true`:
-- Parse natural language queries into structured filters
-- Constrained JSON output
-- 600ms timeout
-- Fallback to keyword extraction
-
-## Backup Runbook
-
-### Nightly Backup
-
-Add to cron:
-```bash
-0 2 * * * /path/to/staffing-agent/scripts/backup.sh
-```
-
-### Restore Procedure
-
-1. Stop backend: `docker-compose stop backend`
-2. Run restore: `./scripts/restore.sh ./backups/staffing_db_YYYYMMDD_HHMMSS.sql.gz`
-3. Verify: `psql $DATABASE_URL -c "SELECT COUNT(*) FROM candidates;"`
-4. Start backend: `docker-compose start backend`
-
-### Disaster Recovery
-
-If database is corrupted:
-1. Restore from most recent backup
-2. Re-ingest documents from MinIO originals
-3. Validate with eval script: `make eval`
-
-## Performance Tuning
-
-### pgvector Index
-
-HNSW index params (adjust for dataset size):
-```sql
-CREATE INDEX idx_embeddings_hnsw ON embeddings
-USING hnsw (vector vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-```
-
-### Search Optimization
-
-- Pre-filter with SQL before pgvector KNN
-- Limit `top_k` to 50 (default)
-- Cache embeddings with `input_hash`
-
-### Scaling
-
-- Horizontal: Read replicas for search
-- Vertical: Increase Postgres shared_buffers
-- Caching: Add Redis for hot queries
-
-## Testing
+### Option 2: Using requirements.txt
 
 ```bash
-pytest                              # All tests
-pytest app/tests/unit/              # Unit only
-pytest app/tests/integration/       # Integration only
-pytest -v -s                        # Verbose
+cd backend
+pip install -r requirements.txt
 ```
 
-## Development
+**Use this if:** You just want to install dependencies without setting up the package.
+
+### Option 3: Regular Install
 
 ```bash
-# Install deps
-pip install -e .
-pip install -e ".[dev]"
-
-# Run migrations
-alembic upgrade head
-
-# Create new migration
-alembic revision --autogenerate -m "add new table"
-
-# Start dev server
-uvicorn app.main:app --reload
+cd backend
+pip install .
 ```
 
-## OIDC Implementation Steps
+**Note:** Changes require reinstalling. Use `-e` flag for development.
 
-1. Install authlib: `pip install authlib`
-2. In `api/v1/auth.py`, implement:
-   - `/auth/oidc/login`: Redirect to IdP with OAuth2 flow
-   - `/auth/oidc/callback`: Exchange code for token, validate ID token, create session
-3. Store OIDC user info in database
-4. Update `get_current_user()` to check OIDC session
+---
 
-Example:
-```python
-from authlib.integrations.starlette_client import OAuth
+## Running Tests
 
-oauth = OAuth()
-oauth.register(
-    name='oidc',
-    client_id=settings.oidc_client_id,
-    client_secret=settings.oidc_client_secret,
-    server_metadata_url=f'{settings.oidc_issuer}/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'},
-)
+After installation:
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test file
+pytest app/tests/unit/test_cv_validation.py
+
+# Run with coverage
+pytest --cov=app --cov-report=html
+
+# Run verbose
+pytest -v
+
+# Run and stop on first failure
+pytest -x
 ```
+
+See [TESTING.md](TESTING.md) for comprehensive testing guide.
+
+---
+
+## Configuration
+
+Create `.env` file in backend directory:
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/staffing
+EMBEDDINGS_MODEL=BAAI/bge-small-en
+EMBEDDINGS_PROVIDER=local
+LLM_PROVIDER=disabled
+```
+
+---
+
+## Development Workflow
+
+1. **Install in editable mode:**
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+2. **Make changes** - No reinstall needed!
+
+3. **Run tests:**
+   ```bash
+   pytest
+   ```
+
+4. **Format code:**
+   ```bash
+   black app/
+   ```
+
+5. **Lint:**
+   ```bash
+   ruff check app/
+   ```
+
+6. **Type check:**
+   ```bash
+   mypy app/
+   ```
+
+---
+
+## Project Structure
+
+```
+backend/
+├── app/                      # Main application package
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app
+│   ├── api/                 # API endpoints
+│   │   └── v1/
+│   ├── models/              # Database models
+│   ├── services/            # Business logic
+│   │   ├── parsing/         # CV parsing
+│   │   ├── cv_validation.py # Data validation
+│   │   └── ...
+│   └── tests/               # Tests
+│       ├── conftest.py
+│       ├── unit/
+│       └── integration/
+├── alembic/                 # Database migrations
+├── config/                  # Config files (ontology)
+├── scripts/                 # Utility scripts
+├── pyproject.toml          # Package config
+├── requirements.txt        # Dependencies
+├── pytest.ini              # Pytest config
+└── README.md               # This file
+```
+
+---
 
 ## Troubleshooting
 
-### Embeddings model download fails
+### `ModuleNotFoundError: No module named 'app'`
 
-If sentence-transformers fails to download model:
+**Solution:**
 ```bash
-export HF_HOME=/path/to/cache
-python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en')"
+cd backend
+pip install -e .
 ```
 
-### pgvector index not used
+This makes the `app` module importable system-wide.
 
-Check query plan:
-```sql
-EXPLAIN ANALYZE SELECT * FROM embeddings ORDER BY vector <=> '[0.1, 0.2, ...]' LIMIT 10;
+### Tests fail with import errors
+
+**Solution:**
+```bash
+pip install -e ".[dev]"  # Install with dev dependencies
 ```
 
-If seq scan, rebuild index:
-```sql
-REINDEX INDEX idx_embeddings_hnsw;
+### Changes not reflected after editing code
+
+If you used `pip install .` (without `-e`), changes require reinstalling.
+
+**Solution:** Use editable mode instead:
+```bash
+pip install -e .
 ```
 
-### LLM timeouts
+### Database connection errors
 
-Increase timeout in agent config:
-```yaml
-llm:
-  rerank:
-    timeout_ms: 1000
+Make sure Docker services are running:
+```bash
+cd ../docker
+docker-compose up -d postgres
 ```
 
-## API Documentation
+Or check your `.env` file has the correct `DATABASE_URL`.
 
-Interactive docs: http://localhost:8000/docs
+---
 
-OpenAPI spec: http://localhost:8000/openapi.json
+## Documentation
+
+- [Testing Guide](TESTING.md) - How to run and write tests
+- [Database Reset](../RESET_DATABASE_INSTRUCTIONS.md) - How to reset database
+- [API Docs](http://localhost:8000/docs) - Auto-generated (when server runs)
+
+---
+
+## Key Features
+
+- ✅ **CV Parsing** - Extracts skills, experience, certifications from PDF/Word
+- ✅ **Data Validation** - Filters passport numbers, IDs, personal data
+- ✅ **Ontology Normalization** - Maps aliases to canonical skills
+- ✅ **Semantic Search** - Vector embeddings with pgvector
+- ✅ **Duplicate Detection** - Identifies and merges duplicate candidates
+- ✅ **Section Editing** - Edit CV sections with auto-embedding regeneration

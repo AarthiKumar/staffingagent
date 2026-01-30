@@ -1,4 +1,13 @@
 """Pytest configuration and fixtures"""
+import sys
+from pathlib import Path
+
+# Add backend directory to Python path so 'app' module can be imported
+# This handles cases where pytest doesn't pick up pythonpath config
+backend_dir = Path(__file__).parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
