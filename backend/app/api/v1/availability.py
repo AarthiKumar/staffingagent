@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.auth0 import User, require_project_manager
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Availability, Candidate
@@ -34,8 +35,14 @@ class AvailabilityResponse(BaseModel):
 
 
 @router.get("/", response_model=List[AvailabilityResponse])
-def list_availability(db: Session = Depends(get_db)):
-    """List all availability records"""
+def list_availability(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
+    """List all availability records
+
+    Requires: project_manager or superuser role
+    """
 
     records = (
         db.query(Availability)
@@ -62,8 +69,12 @@ def update_availability(
     candidate_id: str,
     req: AvailabilityUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
 ):
-    """Update availability for a candidate"""
+    """Update availability for a candidate
+
+    Requires: project_manager or superuser role
+    """
 
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
@@ -114,8 +125,15 @@ def update_availability(
 
 
 @router.post("/upload")
-def upload_availability_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload availability data from CSV"""
+def upload_availability_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
+    """Upload availability data from CSV
+
+    Requires: project_manager or superuser role
+    """
 
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be CSV")

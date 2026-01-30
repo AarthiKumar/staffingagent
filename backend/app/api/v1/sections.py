@@ -2,10 +2,11 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.auth0 import User, get_current_user, require_project_manager
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Section, Document, Candidate, Embedding
@@ -37,12 +38,17 @@ def update_section(
     section_id: str,
     update_data: SectionUpdateRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Update a section's text content and regenerate embeddings
 
     Allows editing of CV sections like skills, certifications, experience, etc.
     Automatically regenerates embeddings for the updated section to maintain
     semantic search accuracy.
+
+    Requires: Any authenticated user
+    - Superuser/Project Manager: Can update any section
+    - Staff: Can only update sections of their own CV (matched by email)
     """
     try:
         section_uuid = UUID(section_id)
@@ -53,6 +59,21 @@ def update_section(
     section = db.query(Section).filter(Section.id == section_uuid).first()
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
+
+    # Check ownership for staff members
+    if user.is_staff and not (user.is_project_manager or user.is_superuser):
+        # Get the candidate associated with this section
+        candidate = (
+            db.query(Candidate)
+            .join(Document)
+            .filter(Document.id == section.document_id)
+            .first()
+        )
+        if candidate and candidate.email != user.email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Staff members can only update their own CV sections"
+            )
 
     # Check if this section type can be edited
     # Allow editing of most section types except internal ones
@@ -147,10 +168,16 @@ def update_section(
 
 
 @router.delete("/{section_id}")
-def delete_section(section_id: str, db: Session = Depends(get_db)):
+def delete_section(
+    section_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
+):
     """Delete a section
 
     Use with caution - this will also delete associated embeddings.
+
+    Requires: project_manager or superuser role
     """
     try:
         section_uuid = UUID(section_id)

@@ -3,11 +3,12 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.auth0 import User, get_current_user, require_project_manager
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models import Availability, Candidate, Document, Section, Embedding
@@ -88,8 +89,12 @@ def list_candidates(
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     search: Optional[str] = Query(None, description="Search by name or email"),
     db: Session = Depends(get_db),
+    user: User = Depends(require_project_manager),
 ):
-    """List all candidates with pagination and optional search"""
+    """List all candidates with pagination and optional search
+
+    Requires: project_manager or superuser role
+    """
 
     # Build base query with eager loading of document
     query = db.query(Candidate).options(joinedload(Candidate.document))
@@ -149,8 +154,17 @@ def list_candidates(
 
 
 @router.get("/{candidate_id}", response_model=CandidateFullDetail)
-def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
-    """Get full candidate details including all sections"""
+def get_candidate_full(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get full candidate details including all sections
+
+    Requires: Any authenticated user
+    - Superuser/Project Manager: Can view any candidate
+    - Staff: Can only view their own profile (matched by email)
+    """
 
     try:
         candidate_uuid = UUID(candidate_id)
@@ -165,6 +179,14 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
     )
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Staff members can only view their own profile
+    if user.is_staff and not (user.is_project_manager or user.is_superuser):
+        if candidate.email != user.email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Staff members can only view their own profile"
+            )
 
     # Get all sections
     sections = (
@@ -232,9 +254,17 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{candidate_id}")
 def update_candidate(
-    candidate_id: str, update_data: CandidateUpdate, db: Session = Depends(get_db)
+    candidate_id: str,
+    update_data: CandidateUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Update candidate core information"""
+    """Update candidate core information
+
+    Requires: Any authenticated user
+    - Superuser/Project Manager: Can update any candidate
+    - Staff: Can only update their own profile (matched by email)
+    """
 
     try:
         candidate_uuid = UUID(candidate_id)
@@ -249,6 +279,14 @@ def update_candidate(
     )
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Staff members can only update their own profile
+    if user.is_staff and not (user.is_project_manager or user.is_superuser):
+        if candidate.email != user.email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Staff members can only update their own profile"
+            )
 
     # Update fields
     update_dict = update_data.model_dump(exclude_none=True)
