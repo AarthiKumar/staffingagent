@@ -12,6 +12,7 @@ from pdfminer.high_level import extract_text as extract_pdf_text
 from app.core.logging import get_logger
 from app.services.ocr import ocr_service
 from app.services.llm_extraction import get_llm_extraction_service
+from app.services.cv_validation import CVDataValidator
 
 logger = get_logger(__name__)
 
@@ -465,7 +466,7 @@ class ResumeParser:
         return chunks
 
     def _merge_llm_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Merge multiple LLM extraction results into a single payload."""
+        """Merge multiple LLM extraction results into a single payload with validation."""
         merged = self._empty_result()
         seen_experience = set()
 
@@ -499,14 +500,25 @@ class ResumeParser:
                 seen_experience.add(exp_key)
                 merged["experience"].append(exp)
 
-        merged["skills"] = list(set(merged["skills"]))[:50]
-        merged["certifications"] = list(set(merged["certifications"]))[:20]
+        # Deduplicate and validate before limiting
+        unique_skills = list(set(merged["skills"]))
+        merged["skills"] = CVDataValidator.filter_skills(unique_skills)[:50]
+
+        unique_certs = list(set(merged["certifications"]))
+        merged["certifications"] = CVDataValidator.filter_certifications(unique_certs)[:20]
+
         merged["experience"] = merged["experience"][:15]
+
+        logger.info(f"Merged LLM results: {len(merged['skills'])} valid skills, {len(merged['certifications'])} valid certifications")
+
         return merged
 
     def _merge_llm_and_regex(self, llm_data: Optional[Dict[str, Any]], regex_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge LLM and regex extraction results."""
+        """Merge LLM and regex extraction results with validation."""
         if not llm_data:
+            # Apply validation to regex data before returning
+            regex_data["skills"] = CVDataValidator.filter_skills(regex_data.get("skills", []))
+            regex_data["certifications"] = CVDataValidator.filter_certifications(regex_data.get("certifications", []))
             return regex_data
 
         merged = dict(llm_data)
@@ -521,8 +533,13 @@ class ResumeParser:
         if not merged.get("summary"):
             merged["summary"] = regex_data.get("summary", "")
 
-        merged["skills"] = list(set((merged.get("skills") or []) + (regex_data.get("skills") or [])))[:50]
-        merged["certifications"] = list(set((merged.get("certifications") or []) + (regex_data.get("certifications") or [])))[:20]
+        # Merge skills and apply validation
+        all_skills = list(set((merged.get("skills") or []) + (regex_data.get("skills") or [])))
+        merged["skills"] = CVDataValidator.filter_skills(all_skills)[:50]
+
+        # Merge certifications and apply validation
+        all_certs = list(set((merged.get("certifications") or []) + (regex_data.get("certifications") or [])))
+        merged["certifications"] = CVDataValidator.filter_certifications(all_certs)[:20]
 
         if not merged.get("experience"):
             merged["experience"] = regex_data.get("experience", [])
@@ -545,6 +562,8 @@ class ResumeParser:
 
         merged["education"] = merged.get("education") or regex_data.get("education", [])
 
+        logger.info(f"Merged results: {len(merged['skills'])} skills, {len(merged['certifications'])} certifications (after validation)")
+
         return merged
 
     def _extract_summary(self, text: str) -> str:
@@ -565,12 +584,12 @@ class ResumeParser:
         return " ".join(lines[:3])[:500]
 
     def _extract_skills(self, text: str) -> List[str]:
-        """Extract skills from text"""
+        """Extract skills from text with validation to filter out personal data"""
         skills = []
 
         # Look for skills section with more flexible patterns
         match = re.search(
-            r"(?i)(?:technical\s+skills?|skills?|core\s+competencies|technologies|expertise|proficiencies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications?|employment|projects?)|\Z)",
+            r"(?i)(?:technical\s+skills?|skills?|core\s+competencies|technologies|expertise|proficiencies)[\s:]*\n(.*?)(?=\n(?:experience|education|certifications?|employment|projects?|personal|passport|nationality)|\Z)",
             text,
             re.DOTALL,
         )
@@ -580,9 +599,11 @@ class ResumeParser:
             tokens = re.split(r"[,;•\|\n\t]", skills_text)
             for token in tokens:
                 skill = token.strip()
-                # Filter out noise
-                if skill and 2 < len(skill) < 50 and not skill.lower().startswith(("experience", "proficient", "knowledge")):
-                    skills.append(skill.lower())
+                # Basic filtering before validation
+                if skill and 2 < len(skill) < 100:
+                    # Apply comprehensive validation
+                    if CVDataValidator.is_valid_skill(skill):
+                        skills.append(skill.lower())
 
         # Comprehensive tech keyword search
         tech_keywords_pattern = r"\b(?:" + "|".join([
@@ -604,9 +625,17 @@ class ResumeParser:
         ]) + r")\b"
 
         tech_keywords = re.findall(tech_keywords_pattern, text, re.IGNORECASE)
-        skills.extend([k.lower() for k in tech_keywords])
+        # Validate tech keywords too (in case they're part of a larger invalid string)
+        validated_keywords = [k.lower() for k in tech_keywords if CVDataValidator.is_valid_skill(k)]
+        skills.extend(validated_keywords)
 
-        return list(set(skills))[:50]
+        # Remove duplicates and apply final filtering
+        unique_skills = list(set(skills))
+        filtered_skills = CVDataValidator.filter_skills(unique_skills)
+
+        logger.info(f"Extracted {len(skills)} skills, filtered down to {len(filtered_skills)} valid skills")
+
+        return filtered_skills[:50]
 
     def _extract_experience(self, text: str) -> List[Dict[str, Any]]:
         """Extract work experience"""
@@ -715,20 +744,31 @@ class ResumeParser:
         return None
 
     def _extract_certifications(self, text: str) -> List[str]:
-        """Extract certifications"""
+        """Extract certifications with validation to filter out personal data"""
         certs = []
         match = re.search(
-            r"(?i)(?:certifications?|certificates?)[\s:]*\n(.*?)(?=\n(?:experience|education|skills)|\Z)",
+            r"(?i)(?:certifications?|certificates?|licenses?|accreditations?)[\s:]*\n(.*?)(?=\n(?:experience|education|skills|personal|passport|nationality)|\Z)",
             text,
             re.DOTALL,
         )
         if match:
             cert_text = match.group(1)
             lines = [l.strip() for l in cert_text.split("\n") if l.strip()]
-            for line in lines[:10]:
-                if len(line) > 5:
-                    certs.append(line[:150])
-        return certs
+            for line in lines[:20]:  # Increased to 20 to get more candidates
+                if len(line) > 3 and len(line) <= 200:
+                    # Clean up common prefixes
+                    cleaned = re.sub(r"^[-•\*\d+\.)\s]+", "", line).strip()
+                    if cleaned:
+                        # Apply validation
+                        if CVDataValidator.is_valid_certification(cleaned):
+                            certs.append(cleaned[:150])
+
+        # Apply final filtering
+        filtered_certs = CVDataValidator.filter_certifications(certs)
+
+        logger.info(f"Extracted {len(certs)} certifications, filtered down to {len(filtered_certs)} valid certifications")
+
+        return filtered_certs
 
     def _extract_name(self, text: str) -> str:
         """Extract candidate name (usually at top of CV)"""
