@@ -11,9 +11,17 @@ import { API_BASE_URL } from './config';
 
 class APIClient {
   private baseURL: string;
+  private getAccessToken?: () => Promise<string>;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  /**
+   * Set the function to get the access token from Auth0
+   */
+  setTokenGetter(getToken: () => Promise<string>) {
+    this.getAccessToken = getToken;
   }
 
   private async request<T>(
@@ -21,12 +29,28 @@ class APIClient {
     options?: RequestInit
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+
+    // Get access token if available
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+
+    if (this.getAccessToken) {
+      try {
+        const token = await this.getAccessToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error('Failed to get access token:', error);
+        // Continue without token - some endpoints might not require auth
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
