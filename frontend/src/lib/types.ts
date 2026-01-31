@@ -130,3 +130,28 @@ export interface CandidateUpdate {
   email?: string;
   location?: string;
 }
+
+// Auth0 Types
+export enum UserRole {
+  SUPERUSER = 'superuser',
+  PROJECT_MANAGER = 'project_manager',
+  STAFF = 'staff',
+}
+
+export interface User {
+  sub: string;
+  email: string;
+  name?: string;
+  roles: string[];
+}
+
+export interface AuthContextType {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user: User | null;
+  login: () => void;
+  logout: () => void;
+  getAccessToken: () => Promise<string>;
+  hasRole: (role: UserRole) => boolean;
+  hasAnyRole: (...roles: UserRole[]) => boolean;
+}
