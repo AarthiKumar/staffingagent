@@ -7,6 +7,7 @@ from .embedding import Embedding
 from .llm_events import LLMEvent, MetricsSearch
 from .ontology import OntologyAlias, OntologyCert, OntologySkill, Decision
 from .section import Section
+from .upload_job import UploadJob, UploadStatus
 
 __all__ = [
     "Base",
@@ -22,4 +23,6 @@ __all__ = [
     "Decision",
     "LLMEvent",
     "MetricsSearch",
+    "UploadJob",
+    "UploadStatus",
 ]

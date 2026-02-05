@@ -240,6 +240,63 @@ class APIClient {
       method: 'DELETE',
     });
   }
+
+  // Async upload methods
+  async uploadCVAsync(data: {
+    agent_id: string;
+    document_type: string;
+    filename: string;
+    content_base64: string;
+    use_ocr?: boolean;
+  }): Promise<{
+    job_id: string;
+    status: string;
+    message: string;
+  }> {
+    return this.request('/async/upload-async', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getUploadStatus(jobId: string): Promise<{
+    job_id: string;
+    status: string;
+    progress: number;
+    current_step: string | null;
+    document_id: string | null;
+    candidate_id: string | null;
+    missing_fields: string[] | null;
+    error_message: string | null;
+    sections_count: number;
+    embeddings_count: number;
+    merge_proposal: any | null;
+    requires_approval: boolean;
+    created_at: string | null;
+    completed_at: string | null;
+  }> {
+    return this.request(`/async/upload-status/${jobId}`);
+  }
+
+  async completeUpload(data: {
+    job_id: string;
+    manual_name?: string;
+    manual_email?: string;
+    manual_phone?: string;
+  }): Promise<{
+    success: boolean;
+    candidate_id?: string;
+    document_id?: string;
+    missing_fields?: string[];
+    requires_approval?: boolean;
+    merge_proposal?: any;
+    message: string;
+  }> {
+    return this.request('/async/complete-upload', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiClient = new APIClient(API_BASE_URL);
