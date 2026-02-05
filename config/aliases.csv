@@ -16,43 +16,389 @@ cicd,ci/cd
 postgres,postgresql
 oracle db,oracle database
 oracle rdbms,oracle database
+oracle 10g,oracle database
 oracle 11g,oracle database
 oracle 12c,oracle database
+oracle 18c,oracle database
 oracle 19c,oracle database
 oracle 21c,oracle database
+oracle 23c,oracle database
+oracle 11.2,oracle database
+oracle 12.1,oracle database
+oracle 12.2,oracle database
+oracle 18.0,oracle database
+oracle 19.0,oracle database
+oracle 21.0,oracle database
+oracle 23.0,oracle database
+oracle 11gr2,oracle database
+oracle 12cr1,oracle database
+oracle 12cr2,oracle database
+oracle 19c rac,oracle rac
+oracle 21c rac,oracle rac
 plsql,pl/sql
 oracle pl/sql,pl/sql
 pl sql,pl/sql
 ansi sql,sql
 oracle sql,sql
+t sql,t-sql
+transact sql,t-sql
+transact-sql,t-sql
+mssql,sql server
+ms sql,sql server
+microsoft sql server,sql server
 rac,oracle rac
 oracle real application clusters,oracle rac
+real application clusters,oracle rac
 dataguard,oracle data guard
 dg,oracle data guard
+data guard,oracle data guard
+physical standby,oracle data guard
+logical standby,oracle data guard
 goldengate,oracle goldengate
 ogg,oracle goldengate
+gg,oracle goldengate
+oracle gg,oracle goldengate
 exadata,oracle exadata
+oracle exa,oracle exadata
+exa,oracle exadata
+x8m,oracle exadata
+x9m,oracle exadata
 apex,oracle apex
 oracle application express,oracle apex
+oracle apex 5,oracle apex
+oracle apex 20,oracle apex
+oracle apex 21,oracle apex
+oracle apex 22,oracle apex
+oracle apex 23,oracle apex
 oic,oracle integration cloud
 oracle integration,oracle integration cloud
 oracle ipaas,oracle integration cloud
+oracle integration cloud service,oracle integration cloud
+oics,oracle integration cloud
 soa suite,oracle soa suite
 oracle soa,oracle soa suite
 bpel,oracle soa suite
+osb,oracle soa suite
+oracle service bus,oracle soa suite
+oracle bpel,oracle soa suite
 oracle ebs,oracle e-business suite
+ebs,oracle e-business suite
 ebs r12,oracle e-business suite
+ebs 12.1,oracle e-business suite
+ebs 12.2,oracle e-business suite
 e-business suite,oracle e-business suite
+r12,oracle e-business suite
+oracle r12,oracle e-business suite
+oracle apps,oracle e-business suite
+oracle applications,oracle e-business suite
 fusion apps,oracle fusion applications
 oracle fusion,oracle fusion applications
+fusion applications,oracle fusion applications
+oracle cloud applications,oracle fusion applications
+oracle saas,oracle fusion applications
 oci,oracle cloud infrastructure
 oracle cloud,oracle cloud infrastructure
 oracle iaas,oracle cloud infrastructure
+oracle gen2 cloud,oracle cloud infrastructure
 otbi,oracle otbi
 oracle transactional business intelligence,oracle otbi
 obiee,oracle bi
-oracle bi,oracle bi
+oracle business intelligence,oracle bi
+obi,oracle bi
 oas,oracle bi
 oracle analytics server,oracle bi
+oac,oracle analytics cloud
+oracle analytics,oracle analytics cloud
 oaf,oracle application framework
 oracle af,oracle application framework
+oracle apps framework,oracle application framework
+weblogic,oracle weblogic
+wls,oracle weblogic
+oracle wls,oracle weblogic
+weblogic server,oracle weblogic
+weblogic 12c,oracle weblogic
+weblogic 14c,oracle weblogic
+coherence,oracle coherence
+oracle coherence,oracle coherence
+adf,oracle adf
+oracle application development framework,oracle adf
+oracle adf 12c,oracle adf
+jdeveloper,oracle jdeveloper
+jdev,oracle jdeveloper
+oracle jdev,oracle jdeveloper
+forms,oracle forms
+oracle forms 12c,oracle forms
+oracle forms 11g,oracle forms
+forms 6i,oracle forms
+reports,oracle reports
+oracle reports 12c,oracle reports
+oracle reports 11g,oracle reports
+discoverer,oracle discoverer
+oracle disc,oracle discoverer
+dbcs,oracle database cloud service
+autonomous database,oracle autonomous database
+autonomous db,oracle autonomous database
+adb,oracle autonomous database
+atp,oracle autonomous database
+adw,oracle autonomous database
+autonomous transaction processing,oracle autonomous database
+autonomous data warehouse,oracle autonomous database
+oracle atp,oracle autonomous database
+oracle adw,oracle autonomous database
+nosql,oracle nosql database
+oracle nosql,oracle nosql database
+essbase,oracle essbase
+oracle essbase,oracle essbase
+hyperion,oracle hyperion
+oracle hyperion,oracle hyperion
+epm,oracle epm
+oracle epm,oracle epm
+enterprise performance management,oracle epm
+planning,oracle planning
+oracle planning,oracle planning
+hyperion planning,oracle planning
+pbcs,oracle pbcs
+planning and budgeting cloud service,oracle pbcs
+arcs,oracle arcs
+account reconciliation cloud service,oracle arcs
+fccs,oracle fccs
+financial consolidation and close cloud service,oracle fccs
+pcmcs,oracle pcmcs
+profitability and cost management cloud service,oracle pcmcs
+odi,oracle odi
+oracle data integrator,oracle odi
+data integrator,oracle odi
+odi 12c,oracle odi
+owb,oracle owb
+oracle warehouse builder,oracle owb
+warehouse builder,oracle owb
+streams,oracle streams
+flashback,oracle flashback
+flashback database,oracle flashback
+asm,oracle asm
+automatic storage management,oracle asm
+oracle asm,oracle asm
+em,oracle enterprise manager
+oem,oracle oem
+oracle em,oracle enterprise manager
+oracle enterprise manager 13c,oracle enterprise manager
+enterprise manager,oracle enterprise manager
+cloud control,oracle cloud control
+oracle cloud control 13c,oracle cloud control
+sql developer,oracle sql developer
+sqldeveloper,oracle sql developer
+sql dev,oracle sql developer
+toad,oracle toad
+toad for oracle,oracle toad
+sqlplus,oracle sql plus
+sql plus,oracle sql plus
+sql*plus,oracle sql plus
+rman,oracle rman
+recovery manager,oracle rman
+oracle recovery manager,oracle rman
+datapump,oracle datapump
+data pump,oracle data pump
+expdp,oracle datapump
+impdp,oracle datapump
+exp,oracle datapump
+imp,oracle datapump
+statspack,oracle statspack
+awr,oracle awr
+automatic workload repository,oracle awr
+ash,oracle ash
+active session history,oracle ash
+addm,oracle addm
+automatic database diagnostic monitor,oracle addm
+oms,oracle oms
+oracle management server,oracle oms
+oel,oracle enterprise linux
+oracle linux,oracle linux
+ol,oracle linux
+rhel,oracle enterprise linux
+solaris,oracle solaris
+oracle solaris 11,oracle solaris
+oracle vm,oracle vm
+ovm,oracle vm
+oracle virtualization,oracle vm
+spatial,oracle spatial
+oracle locator,oracle spatial
+sdo,oracle spatial
+graph,oracle graph
+oracle property graph,oracle graph
+oracle spatial and graph,oracle spatial
+text,oracle text
+oracle text search,oracle text
+label security,oracle label security
+ols,oracle label security
+advanced security,oracle advanced security
+aso,oracle advanced security
+tde,oracle advanced security
+transparent data encryption,oracle advanced security
+multitenant,oracle multitenant
+pdb,oracle pluggable database
+cdb,oracle container database
+pluggable database,oracle pluggable database
+container database,oracle container database
+sharding,oracle sharding
+oracle sharding,oracle sharding
+in-memory,oracle in-memory
+oracle in-memory database,oracle in-memory
+oracle database in-memory,oracle in-memory
+partitioning,oracle partitioning
+oracle partitioning,oracle partitioning
+compression,oracle compression
+oracle compression,oracle compression
+advanced compression,oracle compression
+performance tuning,oracle performance tuning
+oracle tuning,oracle performance tuning
+sql tuning,oracle performance tuning
+database tuning,oracle performance tuning
+backup and recovery,oracle backup and recovery
+oracle backup,oracle backup and recovery
+oracle recovery,oracle backup and recovery
+high availability,oracle high availability
+ha,oracle high availability
+oracle ha,oracle high availability
+disaster recovery,oracle disaster recovery
+dr,oracle disaster recovery
+oracle dr,oracle disaster recovery
+maa,oracle maximum availability architecture
+maximum availability architecture,oracle maximum availability architecture
+netsuite,oracle netsuite
+oracle netsuite,oracle netsuite
+netsuite erp,oracle netsuite
+peoplesoft,oracle peoplesoft
+oracle peoplesoft,oracle peoplesoft
+ps,oracle peoplesoft
+peoplesoft 9.2,oracle peoplesoft
+siebel,oracle siebel
+oracle siebel,oracle siebel
+siebel crm,oracle siebel
+taleo,oracle taleo
+oracle taleo,oracle taleo
+taleo recruiting,oracle taleo
+primavera,oracle primavera
+oracle primavera p6,oracle primavera
+p6,oracle primavera
+retail,oracle retail
+oracle retail,oracle retail
+hospitality,oracle hospitality
+oracle hospitality,oracle hospitality
+opera,oracle hospitality
+oracle opera,oracle hospitality
+banking,oracle banking
+oracle banking,oracle banking
+insurance,oracle insurance
+oracle insurance,oracle insurance
+utilities,oracle utilities
+oracle utilities,oracle utilities
+health sciences,oracle health sciences
+oracle health sciences,oracle health sciences
+otm,oracle transportation management
+transportation management,oracle transportation management
+wms,oracle warehouse management
+warehouse management,oracle warehouse management
+order management,oracle order management
+om,oracle order management
+inventory management,oracle inventory management
+inv,oracle inventory management
+oracle inventory,oracle inventory management
+procurement,oracle procurement
+po,oracle procurement
+oracle po,oracle procurement
+financials,oracle financials
+oracle financials,oracle financials
+gl,oracle financials
+ap,oracle financials
+ar,oracle financials
+general ledger,oracle financials
+accounts payable,oracle financials
+accounts receivable,oracle financials
+hrms,oracle hrms
+oracle hrms,oracle hrms
+oracle hr,oracle hrms
+scm,oracle scm
+supply chain management,oracle scm
+crm,oracle crm
+customer relationship management,oracle crm
+cx,oracle cx
+customer experience,oracle cx
+sales cloud,oracle sales cloud
+oracle sales,oracle sales cloud
+service cloud,oracle service cloud
+oracle service,oracle service cloud
+marketing cloud,oracle marketing cloud
+oracle marketing,oracle marketing cloud
+eloqua,oracle marketing cloud
+commerce cloud,oracle commerce cloud
+oracle commerce,oracle commerce cloud
+atg,oracle commerce cloud
+opa,oracle policy automation
+policy automation,oracle policy automation
+oracle opa,oracle policy automation
+cpq,oracle cpq
+configure price quote,oracle configure price quote
+oracle cpq,oracle cpq
+bpm,oracle bpm
+business process management,oracle bpm
+oracle bpm suite,oracle bpm
+data visualization,oracle data visualization
+oracle dv,oracle data visualization
+dv,oracle data visualization
+oracle mobile,oracle mobile
+jet,oracle jet
+oracle jet,oracle javascript extension toolkit
+javascript extension toolkit,oracle javascript extension toolkit
+vbcs,oracle vbcs
+visual builder,oracle visual builder
+oracle visual builder cloud service,oracle visual builder
+pcs,oracle process cloud service
+process cloud service,oracle process cloud service
+ics,oracle integration cloud service
+integration cloud service,oracle integration cloud
+api platform,oracle api platform
+oracle apipcs,oracle api platform
+mft,oracle managed file transfer
+managed file transfer,oracle managed file transfer
+b2b,oracle b2b
+oracle b2b,oracle b2b
+blockchain,oracle blockchain
+oracle blockchain platform,oracle blockchain
+digital assistant,oracle digital assistant
+oda,oracle digital assistant
+oracle oda,oracle digital assistant
+chatbot,oracle chatbot
+oracle chatbot,oracle chatbot
+machine learning,oracle machine learning
+oracle ml,oracle machine learning
+oml,oracle machine learning
+big data,oracle big data
+oracle big data,oracle big data
+hadoop,oracle hadoop
+oracle hadoop,oracle hadoop
+spark,oracle spark
+oracle spark,oracle spark
+berkeley db,oracle berkeley db
+bdb,oracle berkeley db
+timesten,oracle timesten
+oracle timesten,oracle timesten
+xml db,oracle xml db
+xmldb,oracle xml db
+oracle xmldb,oracle xml db
+json,oracle json
+oracle json,oracle json
+soda,oracle json
+ords,oracle rest data services
+rest data services,oracle rest data services
+oracle ords,oracle rest data services
+olap,oracle olap
+oracle olap,oracle olap
+data mining,oracle data mining
+oracle data mining,oracle data mining
+odm,oracle data mining
+r enterprise,oracle r enterprise
+oracle r,oracle r enterprise
+ore,oracle r enterprise
+advanced analytics,oracle advanced analytics
+oracle advanced analytics,oracle advanced analytics
+oaa,oracle advanced analytics

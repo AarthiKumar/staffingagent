@@ -15,41 +15,78 @@ class CVDataValidator:
         r"\b[A-Z]{1,2}[0-9]{6,9}\b",  # UK: A1234567, India: A1234567, etc.
         r"\b[0-9]{9}\b",  # US: 123456789
         r"\b[A-Z][0-9]{8}\b",  # Many countries: A12345678
+        r"passport\s*(?:no|number|#)?\s*:?\s*[A-Z0-9]+",  # "Passport: X1234567"
+        r"passport\s+[A-Z][0-9]{7,9}",  # "Passport A1234567"
 
         # National IDs, SSN, other government IDs
         r"\b\d{3}-\d{2}-\d{4}\b",  # US SSN: 123-45-6789
         r"\b\d{9,12}\b",  # Generic long numbers (Aadhaar, etc.)
         r"\b[A-Z]{5}[0-9]{4}[A-Z]\b",  # PAN: ABCDE1234F
+        r"(?:aadhar|aadhaar|pan|ssn|national\s+id)\s*(?:no|number|#)?\s*:?\s*[A-Z0-9\-]+",  # ID keywords
+        r"\bpan\s*:?\s*[A-Z]{5}[0-9]{4}[A-Z]\b",  # PAN with label
 
         # Phone numbers
         r"\+?\d{1,4}[\s\-\.]?\(?\d{1,4}\)?[\s\-\.]?\d{3,4}[\s\-\.]?\d{3,4}",  # International/local
         r"\b\d{10}\b",  # 10-digit phone
+        r"(?:phone|mobile|cell|tel)\s*:?\s*\+?[\d\s\-\(\)\.]+",  # Phone with label
 
         # Email addresses
         r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
 
-        # Dates (various formats)
+        # Dates (various formats) - enhanced to catch more variations
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # DD/MM/YYYY, MM-DD-YYYY
         r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b",  # Jan 1, 2020
         r"\b\d{4}-\d{2}-\d{2}\b",  # ISO: 2020-01-01
+        r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b",  # Full month
+        r"\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}\b",  # 1 Jan 2020
+        r"(?:dob|date\s+of\s+birth|born)\s*:?\s*\d",  # Date of birth
 
         # URLs
         r"https?://[^\s]+",
         r"www\.[^\s]+",
+        r"\b[a-z]+\.(?:com|org|net|edu|gov|io|co)\b",  # Domain names
 
         # Address-like patterns
         r"\b\d+\s+[A-Z][a-z]+\s+(street|st|road|rd|avenue|ave|lane|ln|drive|dr|court|ct|boulevard|blvd)\b",
+        r"(?:address|location)\s*:?\s*\d+",  # Address with label
 
         # ZIP/Postal codes
         r"\b\d{5}(?:-\d{4})?\b",  # US ZIP
         r"\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b",  # Canadian postal
         r"\b[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}\b",  # UK postcode
+        r"\b\d{6}\b",  # Indian PIN code (6 digits)
 
-        # License plates
+        # License plates and driver's license
         r"\b[A-Z]{2,3}[\s-]?\d{1,4}[\s-]?[A-Z]{0,3}\b",
+        r"(?:license|licence|dl)\s*(?:no|number|#)?\s*:?\s*[A-Z0-9\-]+",  # License with label
 
         # Credit card-like long numbers
         r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b",
+
+        # Personal info keywords that sometimes leak into skills
+        r"\b(?:father|mother|spouse|husband|wife)(?:'s)?\s+name\b",
+        r"\b(?:male|female|married|single|divorced)\b",
+        r"\bage\s*:?\s*\d+",
+        r"\b\d+\s*(?:years|yrs)\s+old\b",
+        r"\bnationality\s*:?\s*[a-z]+",
+        r"\bvisa\s+(?:status|type)\b",
+
+        # Page numbers and CV metadata
+        r"\bpage\s+\d+(?:\s+of\s+\d+)?\b",
+        r"\b\d+\s+of\s+\d+\b",  # "1 of 2"
+        r"\bcv\s+updated\b",
+        r"\bversion\s+\d+\b",
+
+        # Reference-related text
+        r"\bavailable\s+(?:upon|on)\s+request\b",
+        r"\breferences\s+available\b",
+        r"\bconfidential\b",
+
+        # Salary and compensation
+        r"\b\d+(?:,\d{3})*(?:\s+(?:usd|inr|eur|gbp|dollars?|rupees?))?\b",  # Amounts
+        r"\b(?:salary|compensation|ctc|package)\s*:?\s*\d",  # Salary with label
+        r"\blpa\b",  # Lakhs per annum
+        r"\b\d+\s*(?:lpa|lacs?|lakhs?)\b",  # Indian salary format
     ]
 
     # Common non-skill words that appear in skills sections
@@ -60,7 +97,17 @@ class CVDataValidator:
         "for", "to", "on", "at", "from", "by", "as", "is", "was", "are",
         "have", "has", "had", "can", "will", "would", "should", "could",
         "page", "cv", "resume", "curriculum vitae", "confidential",
-        "personal information", "contact", "references", "available upon request"
+        "personal information", "contact", "references", "available upon request",
+        "skills", "technical skills", "core competencies", "technologies",
+        "tools", "platforms", "software", "applications", "systems",
+        "good", "excellent", "strong", "working", "hands-on", "practical",
+        "theoretical", "basic", "sound", "extensive", "limited", "exposure",
+        "description", "summary", "overview", "details", "information",
+        "section", "list", "items", "points", "bullet", "bullets",
+        "professional", "technical", "business", "functional", "soft",
+        "personal", "interpersonal", "communication", "teamwork", "leadership",
+        "proficiency", "competency", "ability", "capability", "capacity",
+        "duration", "period", "span", "length", "time", "currently", "present"
     }
 
     # Generic phrases that indicate personal data section

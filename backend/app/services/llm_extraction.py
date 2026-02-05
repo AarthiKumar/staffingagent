@@ -82,7 +82,7 @@ class LLMExtractionService:
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are an expert resume parser. Extract structured information from resumes with high accuracy.
+                        "content": """You are an expert resume parser specializing in Oracle and database technology resumes. Extract structured information from resumes with high accuracy.
 
 IMPORTANT INSTRUCTIONS:
 1. For Basic Information:
@@ -90,27 +90,53 @@ IMPORTANT INSTRUCTIONS:
    - Extract email address (look for @ symbol)
    - Extract phone number (various formats: (123) 456-7890, +1-123-456-7890, etc.)
    - Extract location (city, state/country)
+   - CRITICAL: Do NOT extract passport numbers, national IDs, dates of birth, or any personal identification data as skills
 
 2. For Summary:
    - Extract the professional summary or objective section
    - If no explicit summary, create a brief one from the first paragraph or key highlights
    - Keep it concise (2-3 sentences max)
+   - Focus on Oracle/database experience if present
 
 3. For Skills:
-   - Extract ONLY skill keywords (technologies, tools, methodologies)
+   - Extract ONLY technical skill keywords (technologies, tools, methodologies)
    - Return as a list of individual skills
-   - Include programming languages, frameworks, tools, certifications
+   - Include programming languages, frameworks, database tools, Oracle products
    - Normalize case (lowercase)
+   - CRITICAL FILTERING - DO NOT EXTRACT:
+     * Passport numbers, national IDs, SSN, Aadhaar, PAN numbers
+     * Phone numbers or email addresses
+     * Dates (birth dates, visa dates, etc.)
+     * Personal information (age, gender, nationality, marital status)
+     * Page numbers, "CV", "Resume", "References available"
+     * Salary information or compensation details
+     * Addresses, postal codes, or location data
+     * Generic phrases like "proficient", "experience", "years"
+   - FOCUS ON EXTRACTING:
+     * Oracle products: Oracle Database (11g, 12c, 19c, 21c, 23c), PL/SQL, Oracle Cloud Infrastructure, Oracle RAC, Data Guard, GoldenGate, Exadata
+     * Oracle Applications: E-Business Suite, Fusion Applications, PeopleSoft, Siebel, NetSuite
+     * Oracle Middleware: WebLogic, SOA Suite, OSB, ADF, APEX
+     * Oracle Tools: SQL Developer, TOAD, RMAN, Enterprise Manager (OEM), SQL*Plus
+     * Oracle Cloud: OCI, Autonomous Database, Oracle Cloud Applications
+     * Oracle BI: OBIEE, OAS, OAC, OTBI, Essbase
+     * Oracle EPM: Hyperion, Planning, PBCS, FCCS
+     * Other databases: PostgreSQL, MySQL, SQL Server, MongoDB
+     * Programming: Java, Python, JavaScript, PL/SQL, T-SQL
+     * Cloud: AWS, Azure, GCP
+     * DevOps: Docker, Kubernetes, Jenkins, GitLab, Terraform
 
 4. For Experience:
    - Extract all work experience entries
    - For each entry include: organization, role, start date, end date, and bullet points
    - Preserve the original bullet points
+   - Pay special attention to Oracle-related roles and responsibilities
 
 5. For Certifications:
    - Extract ONLY certification keywords/names
    - Return as a list of certification names
-   - Include acronyms (AWS, PMP, etc.)
+   - Include Oracle certifications: OCA, OCP, OCM, Oracle Cloud certifications
+   - Include other certifications: AWS, Azure, GCP, CKA, RHCE, etc.
+   - DO NOT extract personal ID numbers or passport numbers
 
 Return ONLY a valid JSON object. Do not include any explanations or markdown formatting."""
                     },
@@ -136,7 +162,7 @@ Return ONLY a valid JSON object. Do not include any explanations or markdown for
 
     def _build_extraction_prompt(self, text: str) -> str:
         """Build prompt for CV extraction"""
-        prompt = f"""Extract structured information from this resume/CV:
+        prompt = f"""Extract structured information from this Oracle/Database professional resume/CV:
 
 {text}
 
@@ -147,7 +173,7 @@ Return a JSON object with this EXACT structure:
   "phone": "phone number or null",
   "location": "City, State/Country or null",
   "summary": "Professional summary (2-3 sentences)",
-  "skills": ["skill1", "skill2", "skill3"],
+  "skills": ["oracle database", "pl/sql", "oracle 19c", "java", "python"],
   "experience": [
     {{
       "org": "Company Name",
@@ -157,15 +183,30 @@ Return a JSON object with this EXACT structure:
       "bullets": ["Achievement 1", "Achievement 2"]
     }}
   ],
-  "certifications": ["Certification Name 1", "AWS Certified", "PMP"]
+  "certifications": ["Oracle Certified Professional", "AWS Certified Solutions Architect"]
 }}
 
-IMPORTANT:
-- For skills: return individual keywords only (e.g., ["python", "react", "aws"])
-- For certifications: return certification names/acronyms only
+CRITICAL INSTRUCTIONS:
+
+Skills Extraction - ONLY extract technical skills:
+✓ INCLUDE: oracle database, oracle 12c, oracle 19c, pl/sql, oracle rac, oracle data guard, goldengate, exadata, oracle ebs, oracle fusion, weblogic, soa suite, apex, adf, obiee, sql developer, rman, postgresql, mysql, java, python, aws, azure, docker, kubernetes
+✗ EXCLUDE: passport numbers, IDs (Aadhaar, PAN, SSN), phone numbers, emails, dates (DOB, visa dates), addresses, postal codes, page numbers, "CV", "Resume", age, nationality, salary, personal info, generic phrases
+
+Certification Extraction - ONLY extract certification names:
+✓ INCLUDE: Oracle Certified Professional, Oracle Certified Associate, OCP DBA, OCA, OCM, Oracle Cloud Infrastructure Architect, AWS Certified, Azure Administrator, CKA, RHCE
+✗ EXCLUDE: Certification numbers, expiry dates, passport numbers, personal IDs
+
+Contact Information - Extract basic contact only:
+✓ INCLUDE: Email address, phone number, city/state location
+✗ EXCLUDE: Full street address, passport number, national ID, visa details
+
+General Rules:
+- For skills: return individual lowercase keywords (e.g., ["oracle database", "pl/sql", "oracle 19c", "java", "python", "kubernetes"])
+- For certifications: return full certification names (e.g., ["Oracle Certified Professional DBA", "AWS Certified Solutions Architect"])
 - If a field is not found, use null for strings or [] for arrays
-- Ensure all dates are extracted if available
-- Extract ALL work experience entries, not just the most recent"""
+- Extract ALL work experience entries, not just the most recent
+- Focus on Oracle and database technologies when present
+- Be aggressive in filtering out non-technical data from skills"""
 
         return prompt
 

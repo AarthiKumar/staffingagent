@@ -55,7 +55,8 @@ agile
 scrum
 oracle database
 pl/sql
-sql
+sql server
+t-sql
 oracle rac
 oracle data guard
 oracle goldengate
@@ -69,3 +70,134 @@ oracle cloud infrastructure
 oracle otbi
 oracle bi
 oracle application framework
+oracle weblogic
+oracle coherence
+oracle adf
+oracle jdeveloper
+oracle forms
+oracle reports
+oracle discoverer
+oracle database cloud service
+oracle autonomous database
+oracle nosql database
+oracle essbase
+oracle hyperion
+oracle epm
+oracle planning
+oracle pbcs
+oracle arcs
+oracle fccs
+oracle pcmcs
+oracle analytics cloud
+oracle data integrator
+oracle odi
+oracle warehouse builder
+oracle owb
+oracle golden gate
+oracle streams
+oracle flashback
+oracle asm
+oracle enterprise manager
+oracle oem
+oracle cloud control
+oracle sql developer
+oracle toad
+oracle sql plus
+oracle rman
+oracle data pump
+oracle datapump
+oracle statspack
+oracle awr
+oracle ash
+oracle addm
+oracle oms
+oracle enterprise linux
+oracle solaris
+oracle vm
+oracle linux
+oracle spatial
+oracle graph
+oracle text
+oracle label security
+oracle advanced security
+oracle multitenant
+oracle pluggable database
+oracle container database
+oracle sharding
+oracle in-memory
+oracle partitioning
+oracle compression
+oracle performance tuning
+oracle backup and recovery
+oracle high availability
+oracle disaster recovery
+oracle maximum availability architecture
+oracle dbms
+oracle performance monitoring
+oracle capacity planning
+oracle patching
+oracle upgrades
+oracle migration
+oracle netsuite
+oracle peoplesoft
+oracle siebel
+oracle taleo
+oracle hyperion planning
+oracle essbase
+oracle primavera
+oracle retail
+oracle hospitality
+oracle banking
+oracle insurance
+oracle utilities
+oracle health sciences
+oracle transportation management
+oracle warehouse management
+oracle order management
+oracle inventory management
+oracle procurement
+oracle financials
+oracle hrms
+oracle scm
+oracle crm
+oracle cx
+oracle sales cloud
+oracle service cloud
+oracle marketing cloud
+oracle commerce cloud
+oracle policy automation
+oracle cpq
+oracle configure price quote
+oracle opa
+oracle bpm
+oracle business intelligence
+oracle data visualization
+oracle mobile
+oracle jet
+oracle javascript extension toolkit
+oracle vbcs
+oracle visual builder
+oracle process cloud service
+oracle integration cloud service
+oracle api platform
+oracle managed file transfer
+oracle b2b
+oracle blockchain
+oracle digital assistant
+oracle chatbot
+oracle machine learning
+oracle big data
+oracle hadoop
+oracle spark
+oracle nosql
+oracle berkeley db
+oracle timesten
+oracle xml db
+oracle json
+oracle rest data services
+oracle ords
+oracle application express
+oracle olap
+oracle data mining
+oracle r enterprise
+oracle advanced analytics

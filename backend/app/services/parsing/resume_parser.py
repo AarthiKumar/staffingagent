@@ -605,7 +605,7 @@ class ResumeParser:
                     if CVDataValidator.is_valid_skill(skill):
                         skills.append(skill.lower())
 
-        # Comprehensive tech keyword search
+        # Comprehensive tech keyword search with strong Oracle focus
         tech_keywords_pattern = r"\b(?:" + "|".join([
             # Programming Languages
             "python", "java", "javascript", "typescript", "c\\+\\+", "c#", "ruby", "go", "golang", "rust", "php", "swift", "kotlin", "scala", "perl", "r",
@@ -613,8 +613,50 @@ class ResumeParser:
             "react", "angular", "vue", "svelte", "html", "css", "sass", "scss", "tailwind", "bootstrap", "jquery",
             # Backend/Frameworks
             "node\\.?js", "express", "django", "flask", "fastapi", "spring", "rails", "laravel", "asp\\.net",
-            # Databases
-            "sql", "mysql", "postgresql", "postgres", "mongodb", "redis", "cassandra", "dynamodb", "elasticsearch", "oracle", "mssql",
+            # Databases - General
+            "sql", "mysql", "postgresql", "postgres", "mongodb", "redis", "cassandra", "dynamodb", "elasticsearch", "mssql",
+            # Oracle Database - Core
+            "oracle", "oracle\\s+database", "oracle\\s+db", "oracle\\s+rdbms", "pl/sql", "plsql", "pl\\s+sql",
+            "oracle\\s+11g", "oracle\\s+12c", "oracle\\s+18c", "oracle\\s+19c", "oracle\\s+21c", "oracle\\s+23c",
+            # Oracle Database - High Availability
+            "oracle\\s+rac", "rac", "real\\s+application\\s+clusters", "oracle\\s+data\\s+guard", "dataguard",
+            "oracle\\s+goldengate", "goldengate", "ogg", "oracle\\s+exadata", "exadata",
+            # Oracle Database - Features
+            "oracle\\s+asm", "asm", "oracle\\s+rman", "rman", "oracle\\s+datapump", "datapump",
+            "oracle\\s+awr", "awr", "oracle\\s+ash", "ash", "oracle\\s+addm", "addm",
+            "oracle\\s+partitioning", "oracle\\s+compression", "oracle\\s+in-memory",
+            # Oracle Enterprise Manager
+            "oracle\\s+enterprise\\s+manager", "oem", "oracle\\s+em", "oracle\\s+cloud\\s+control",
+            # Oracle Middleware
+            "oracle\\s+weblogic", "weblogic", "wls", "oracle\\s+coherence", "coherence",
+            "oracle\\s+soa\\s+suite", "soa\\s+suite", "oracle\\s+osb", "osb", "oracle\\s+bpel", "bpel",
+            # Oracle Development Tools
+            "oracle\\s+apex", "apex", "oracle\\s+application\\s+express",
+            "oracle\\s+adf", "adf", "oracle\\s+jdeveloper", "jdeveloper",
+            "oracle\\s+forms", "oracle\\s+reports", "oracle\\s+sql\\s+developer",
+            "oracle\\s+ords", "ords", "oracle\\s+rest\\s+data\\s+services",
+            # Oracle Cloud
+            "oracle\\s+cloud\\s+infrastructure", "oci", "oracle\\s+cloud", "oracle\\s+iaas",
+            "oracle\\s+autonomous\\s+database", "autonomous\\s+database", "adb", "atp", "adw",
+            "oracle\\s+integration\\s+cloud", "oic", "oracle\\s+analytics\\s+cloud", "oac",
+            # Oracle Applications - EBS
+            "oracle\\s+e-business\\s+suite", "oracle\\s+ebs", "ebs", "oracle\\s+apps", "oracle\\s+r12",
+            "oracle\\s+financials", "oracle\\s+scm", "oracle\\s+hrms", "oracle\\s+crm",
+            # Oracle Applications - Fusion
+            "oracle\\s+fusion", "oracle\\s+fusion\\s+applications", "fusion\\s+apps",
+            "oracle\\s+fusion\\s+middleware", "oracle\\s+sales\\s+cloud", "oracle\\s+service\\s+cloud",
+            # Oracle BI & Analytics
+            "oracle\\s+bi", "obiee", "oracle\\s+analytics\\s+server", "oas",
+            "oracle\\s+otbi", "otbi", "oracle\\s+analytics", "oracle\\s+essbase", "essbase",
+            # Oracle EPM
+            "oracle\\s+hyperion", "hyperion", "oracle\\s+epm", "oracle\\s+planning",
+            "oracle\\s+pbcs", "pbcs", "oracle\\s+fccs", "fccs",
+            # Oracle Integration
+            "oracle\\s+odi", "odi", "oracle\\s+data\\s+integrator",
+            "oracle\\s+api\\s+platform", "oracle\\s+mft", "oracle\\s+b2b",
+            # Oracle Other Apps
+            "oracle\\s+netsuite", "netsuite", "oracle\\s+peoplesoft", "peoplesoft",
+            "oracle\\s+siebel", "siebel", "oracle\\s+taleo", "taleo", "oracle\\s+primavera", "primavera",
             # Cloud/DevOps
             "aws", "azure", "gcp", "docker", "kubernetes", "k8s", "terraform", "ansible", "jenkins", "gitlab", "github", "circleci",
             "ci/cd", "devops", "cloudformation",
