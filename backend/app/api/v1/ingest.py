@@ -492,9 +492,9 @@ def _create_embeddings(
         logger.error(f"❌ EMBEDDING CREATION FAILED: {e}")
         logger.error(f"Provider: {embeddings_service.provider}, Model: {embeddings_service.model}")
         logger.error("Possible causes:")
-        logger.error("  1. sentence-transformers not installed: pip install sentence-transformers")
-        logger.error("  2. Model not downloaded (will download on first use, requires internet)")
-        logger.error("  3. OpenAI API key not set (if using EMBEDDINGS_PROVIDER=openai)")
+        logger.error("  1. OpenAI API key not set: Set LLM_API_KEY in .env (required for default OpenAI embeddings)")
+        logger.error("  2. Invalid OpenAI API key or network issues")
+        logger.error("  3. Local embeddings: Set EMBEDDINGS_PROVIDER=local (requires sentence-transformers)")
         import traceback
         logger.error(f"Full error: {traceback.format_exc()}")
         return 0

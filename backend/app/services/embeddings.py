@@ -136,6 +136,6 @@ def get_embeddings_service() -> EmbeddingsService:
         return service
     except Exception as e:
         logger.error(f"Failed to initialize embeddings service: {e}")
-        logger.error("Make sure you have sentence-transformers installed: pip install sentence-transformers")
-        logger.error("Or switch to OpenAI embeddings by setting EMBEDDINGS_PROVIDER=openai and LLM_API_KEY in .env")
+        logger.error("Make sure you have configured OpenAI API key in .env: LLM_API_KEY=sk-...")
+        logger.error("Or switch to local embeddings by setting EMBEDDINGS_PROVIDER=local (requires sentence-transformers)")
         raise RuntimeError(f"Embeddings service initialization failed: {e}") from e

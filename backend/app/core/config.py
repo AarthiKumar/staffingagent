@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     minio_bucket: str = Field(default="originals", alias="MINIO_BUCKET")
     storage_local_path: str = Field(default="./data/originals", alias="STORAGE_LOCAL_PATH")
 
-    embeddings_model: str = Field(default="BAAI/bge-small-en", alias="EMBEDDINGS_MODEL")
-    embeddings_provider: str = Field(default="local", alias="EMBEDDINGS_PROVIDER")
+    embeddings_model: str = Field(default="text-embedding-3-small", alias="EMBEDDINGS_MODEL")
+    embeddings_provider: str = Field(default="openai", alias="EMBEDDINGS_PROVIDER")
     llm_provider: str = Field(default="disabled", alias="LLM_PROVIDER")
     llm_api_key: Optional[str] = Field(default=None, alias="LLM_API_KEY")
     enable_llm_rerank: bool = Field(default=False, alias="ENABLE_LLM_RERANK")
