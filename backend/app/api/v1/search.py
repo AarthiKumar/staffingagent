@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.core.security import require_permission, PERM_SEARCH_CANDIDATES, PERM_VIEW_CANDIDATES
 from app.db.session import get_db
 from app.models import Candidate, Availability, MetricsSearch
 from app.services.ranking import RankingService
@@ -65,7 +66,11 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/", response_model=SearchResponse)
-def search_candidates(req: SearchRequest, db: Session = Depends(get_db)):
+def search_candidates(
+    req: SearchRequest,
+    _user: dict = Depends(require_permission(PERM_SEARCH_CANDIDATES)),
+    db: Session = Depends(get_db),
+):
     """Search for candidates with filters and optional semantic query"""
 
     start_time = time.time()
@@ -164,7 +169,11 @@ def search_candidates(req: SearchRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/candidates/{candidate_id}")
-def get_candidate_detail(candidate_id: str, db: Session = Depends(get_db)):
+def get_candidate_detail(
+    candidate_id: str,
+    _user: dict = Depends(require_permission(PERM_VIEW_CANDIDATES)),
+    db: Session = Depends(get_db),
+):
     """Get detailed candidate information"""
 
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()

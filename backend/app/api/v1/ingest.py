@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.core.security import require_permission, PERM_UPLOAD_CV, PERM_MANAGE_CVS
 from app.db.session import get_db
 from app.models import Agent, Candidate, Document, Embedding, Section
 from app.services.cv_merge import get_cv_merge_service
@@ -53,7 +54,11 @@ class IngestResponse(BaseModel):
 
 
 @router.post("/", response_model=IngestResponse)
-def ingest_document(req: IngestRequest, db: Session = Depends(get_db)):
+def ingest_document(
+    req: IngestRequest,
+    _user: dict = Depends(require_permission(PERM_UPLOAD_CV, PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
+):
     """Ingest a document (resume, etc.)"""
 
     # Decode content
@@ -513,7 +518,11 @@ class MergeApprovalResponse(BaseModel):
 
 
 @router.post("/approve-merge", response_model=MergeApprovalResponse)
-def approve_merge(req: MergeApprovalRequest, db: Session = Depends(get_db)):
+def approve_merge(
+    req: MergeApprovalRequest,
+    _user: dict = Depends(require_permission(PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
+):
     """Approve and apply CV merge for duplicate candidate"""
 
     try:

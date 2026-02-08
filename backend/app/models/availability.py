@@ -25,6 +25,7 @@ class Availability(Base):
         ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True
     )
     available_from: Mapped[date] = mapped_column(Date, nullable=False)
+    available_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     capacity_pct: Mapped[int] = mapped_column(Integer, nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

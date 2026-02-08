@@ -1,56 +1,77 @@
 """Authentication endpoints"""
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, verify_password
+from app.core.security import get_current_user, CLAIMS_NAMESPACE
+from app.core.config import settings
+from app.db.session import get_db
+from app.models import User
 
 router = APIRouter()
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+class UserInfo(BaseModel):
+    sub: str
+    email: str | None
+    name: str | None
+    roles: list[str]
+    permissions: list[str]
+    candidate_id: str | None
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str
+class Auth0Config(BaseModel):
+    domain: str
+    client_id: str
+    audience: str
 
 
-# TODO: Load users from database
-# Stub local auth with hardcoded user
-STUB_USERS = {
-    "admin": {
-        "username": "admin",
-        "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYBn0VWZ6Yu",  # "admin"
-    }
-}
+@router.get("/config", response_model=Auth0Config)
+def get_auth0_config():
+    """Return Auth0 configuration for the frontend"""
+    if not settings.auth0_domain or not settings.auth0_client_id or not settings.auth0_audience:
+        raise HTTPException(status_code=503, detail="Auth0 not configured")
+    return Auth0Config(
+        domain=settings.auth0_domain,
+        client_id=settings.auth0_client_id,
+        audience=settings.auth0_audience,
+    )
 
 
-@router.post("/login", response_model=LoginResponse)
-def login(req: LoginRequest):
-    """Local authentication login"""
-    user = STUB_USERS.get(req.username)
+@router.get("/me", response_model=UserInfo)
+async def get_me(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current authenticated user info, syncing with local DB"""
+    sub = current_user["sub"]
 
-    if not user or not verify_password(req.password, user["password_hash"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+    # Upsert user record
+    user = db.query(User).filter(User.auth0_sub == sub).first()
+    if not user:
+        user = User(
+            auth0_sub=sub,
+            email=current_user.get("email") or "",
+            role=_infer_role(current_user.get("roles", [])),
         )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    access_token = create_access_token(data={"sub": req.username, "username": req.username})
+    return UserInfo(
+        sub=sub,
+        email=current_user.get("email"),
+        name=None,
+        roles=current_user.get("roles", []),
+        permissions=current_user.get("permissions", []),
+        candidate_id=str(user.candidate_id) if user.candidate_id else None,
+    )
 
-    return LoginResponse(access_token=access_token, token_type="bearer")
 
-
-# OIDC endpoints (disabled by default)
-# TODO: Implement OIDC flow when OIDC_ENABLED=true
-# @router.get("/oidc/login")
-# async def oidc_login():
-#     """Redirect to OIDC provider"""
-#     pass
-#
-# @router.get("/oidc/callback")
-# async def oidc_callback(code: str):
-#     """Handle OIDC callback"""
-#     pass
+def _infer_role(roles: list[str]) -> str:
+    """Map Auth0 roles list to primary role"""
+    if "superuser" in roles:
+        return "superuser"
+    if "project_manager" in roles:
+        return "project_manager"
+    return "candidate"

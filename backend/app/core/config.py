@@ -29,13 +29,10 @@ class Settings(BaseSettings):
     enable_llm_rerank: bool = Field(default=False, alias="ENABLE_LLM_RERANK")
     enable_nl_assist: bool = Field(default=False, alias="ENABLE_NL_ASSIST")
 
-    oidc_enabled: bool = Field(default=False, alias="OIDC_ENABLED")
-    oidc_issuer: Optional[str] = Field(default=None, alias="OIDC_ISSUER")
-    oidc_client_id: Optional[str] = Field(default=None, alias="OIDC_CLIENT_ID")
-    oidc_client_secret: Optional[str] = Field(default=None, alias="OIDC_CLIENT_SECRET")
-    oidc_redirect_uri: str = Field(
-        default="http://localhost:5173/callback", alias="OIDC_REDIRECT_URI"
-    )
+    # Auth0 Configuration
+    auth0_domain: Optional[str] = Field(default=None, alias="AUTH0_DOMAIN")
+    auth0_audience: Optional[str] = Field(default=None, alias="AUTH0_AUDIENCE")
+    auth0_client_id: Optional[str] = Field(default=None, alias="AUTH0_CLIENT_ID")
 
     prometheus_port: int = Field(default=9001, alias="PROMETHEUS_PORT")
 

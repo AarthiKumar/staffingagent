@@ -11,9 +11,14 @@ import { API_BASE_URL } from './config';
 
 class APIClient {
   private baseURL: string;
+  private getAccessToken?: () => Promise<string>;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  setTokenGetter(getter: () => Promise<string>) {
+    this.getAccessToken = getter;
   }
 
   private async request<T>(
@@ -21,12 +26,24 @@ class APIClient {
     options?: RequestInit
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string>),
+    };
+
+    if (this.getAccessToken) {
+      try {
+        const token = await this.getAccessToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch (_e) {
+        // proceed without token
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -78,9 +95,17 @@ class APIClient {
     formData.append('file', file);
 
     const url = `${this.baseURL}/availability/upload`;
+    const headers: Record<string, string> = {};
+    if (this.getAccessToken) {
+      try {
+        const token = await this.getAccessToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch (_e) {}
+    }
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
+      headers,
     });
 
     if (!response.ok) {

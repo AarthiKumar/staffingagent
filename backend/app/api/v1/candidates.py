@@ -9,6 +9,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.logging import get_logger
+from app.core.security import require_permission, PERM_VIEW_CANDIDATES, PERM_MANAGE_CVS, PERM_EDIT_OWN_CV
 from app.db.session import get_db
 from app.models import Availability, Candidate, Document, Section, Embedding
 
@@ -87,6 +88,7 @@ def list_candidates(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     search: Optional[str] = Query(None, description="Search by name or email"),
+    _user: dict = Depends(require_permission(PERM_VIEW_CANDIDATES)),
     db: Session = Depends(get_db),
 ):
     """List all candidates with pagination and optional search"""
@@ -149,7 +151,11 @@ def list_candidates(
 
 
 @router.get("/{candidate_id}", response_model=CandidateFullDetail)
-def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
+def get_candidate_full(
+    candidate_id: str,
+    _user: dict = Depends(require_permission(PERM_VIEW_CANDIDATES)),
+    db: Session = Depends(get_db),
+):
     """Get full candidate details including all sections"""
 
     try:
@@ -232,7 +238,10 @@ def get_candidate_full(candidate_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{candidate_id}")
 def update_candidate(
-    candidate_id: str, update_data: CandidateUpdate, db: Session = Depends(get_db)
+    candidate_id: str,
+    update_data: CandidateUpdate,
+    _user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
+    db: Session = Depends(get_db),
 ):
     """Update candidate core information"""
 

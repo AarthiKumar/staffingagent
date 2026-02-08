@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.core.security import require_permission, PERM_MANAGE_CVS, PERM_EDIT_OWN_CV
 from app.db.session import get_db
 from app.models import Section, Document, Candidate, Embedding
 from app.services.embeddings import get_embeddings_service
@@ -36,6 +37,7 @@ class SectionUpdateResponse(BaseModel):
 def update_section(
     section_id: str,
     update_data: SectionUpdateRequest,
+    _user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
     db: Session = Depends(get_db),
 ):
     """Update a section's text content and regenerate embeddings
@@ -147,7 +149,11 @@ def update_section(
 
 
 @router.delete("/{section_id}")
-def delete_section(section_id: str, db: Session = Depends(get_db)):
+def delete_section(
+    section_id: str,
+    _user: dict = Depends(require_permission(PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
+):
     """Delete a section
 
     Use with caution - this will also delete associated embeddings.

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.core.security import require_permission, PERM_UPLOAD_CV, PERM_MANAGE_CVS
 from app.db.session import get_db
 from app.models import Agent, Candidate, Document, Embedding, Section, UploadJob, UploadStatus
 from app.services.cv_merge import get_cv_merge_service
@@ -69,7 +70,8 @@ class CompleteUploadRequest(BaseModel):
 async def upload_cv_async(
     req: UploadRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    _user: dict = Depends(require_permission(PERM_UPLOAD_CV, PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
 ):
     """
     Upload CV for async processing with progress tracking.
@@ -113,7 +115,11 @@ async def upload_cv_async(
 
 
 @router.get("/upload-status/{job_id}", response_model=JobStatusResponse)
-def get_upload_status(job_id: str, db: Session = Depends(get_db)):
+def get_upload_status(
+    job_id: str,
+    _user: dict = Depends(require_permission(PERM_UPLOAD_CV, PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
+):
     """Get the status of an upload job"""
     try:
         job = db.query(UploadJob).filter(UploadJob.id == uuid.UUID(job_id)).first()
@@ -147,7 +153,8 @@ def get_upload_status(job_id: str, db: Session = Depends(get_db)):
 @router.post("/complete-upload")
 def complete_upload_with_manual_data(
     req: CompleteUploadRequest,
-    db: Session = Depends(get_db)
+    _user: dict = Depends(require_permission(PERM_UPLOAD_CV, PERM_MANAGE_CVS)),
+    db: Session = Depends(get_db),
 ):
     """
     Complete an upload that requires manual data entry.
