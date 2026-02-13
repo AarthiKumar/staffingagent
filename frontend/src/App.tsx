@@ -65,6 +65,11 @@ function AppContent() {
   const isProjectManager = roles.includes('project_manager');
   const isCandidate = roles.includes('candidate');
 
+  // Debug: Log user object and roles
+  console.log('User object:', user);
+  console.log('Roles from token:', roles);
+  console.log('isSuperuser:', isSuperuser, 'isProjectManager:', isProjectManager, 'isCandidate:', isCandidate);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <nav className="bg-white shadow-sm border-b border-gray-200">
