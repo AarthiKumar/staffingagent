@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,9 +35,18 @@ class Settings(BaseSettings):
     enable_nl_assist: bool = Field(default=False, alias="ENABLE_NL_ASSIST")
 
     # Auth0 Configuration
-    auth0_domain: Optional[str] = Field(default=None, alias="AUTH0_DOMAIN")
-    auth0_audience: Optional[str] = Field(default=None, alias="AUTH0_AUDIENCE")
-    auth0_client_id: Optional[str] = Field(default=None, alias="AUTH0_CLIENT_ID")
+    auth0_domain: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_DOMAIN", "VITE_AUTH0_DOMAIN"),
+    )
+    auth0_audience: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_AUDIENCE", "VITE_AUTH0_AUDIENCE"),
+    )
+    auth0_client_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_CLIENT_ID", "VITE_AUTH0_CLIENT_ID"),
+    )
 
     prometheus_port: int = Field(default=9001, alias="PROMETHEUS_PORT")
 
