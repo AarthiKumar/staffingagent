@@ -4,14 +4,19 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Main application settings"""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # Support running backend from either repository root or backend/ directory.
+    model_config = SettingsConfigDict(
+        env_file=(".env", "backend/.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_env: str = Field(default="dev", alias="APP_ENV")
     database_url: str = Field(alias="DATABASE_URL")
@@ -30,9 +35,18 @@ class Settings(BaseSettings):
     enable_nl_assist: bool = Field(default=False, alias="ENABLE_NL_ASSIST")
 
     # Auth0 Configuration
-    auth0_domain: Optional[str] = Field(default=None, alias="AUTH0_DOMAIN")
-    auth0_audience: Optional[str] = Field(default=None, alias="AUTH0_AUDIENCE")
-    auth0_client_id: Optional[str] = Field(default=None, alias="AUTH0_CLIENT_ID")
+    auth0_domain: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_DOMAIN", "VITE_AUTH0_DOMAIN"),
+    )
+    auth0_audience: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_AUDIENCE", "VITE_AUTH0_AUDIENCE"),
+    )
+    auth0_client_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH0_CLIENT_ID", "VITE_AUTH0_CLIENT_ID"),
+    )
 
     prometheus_port: int = Field(default=9001, alias="PROMETHEUS_PORT")
 
