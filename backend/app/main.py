@@ -15,6 +15,14 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown logic"""
     # Startup
     setup_logging("INFO" if not settings.is_dev else "DEBUG")
+
+    # Log Auth0 configuration status
+    from app.core.logging import get_logger
+    logger = get_logger(__name__)
+    logger.info(f"Auth0 Domain: {settings.auth0_domain or 'NOT SET'}")
+    logger.info(f"Auth0 Audience: {settings.auth0_audience or 'NOT SET'}")
+    logger.info(f"Auth0 Client ID: {settings.auth0_client_id or 'NOT SET'}")
+
     init_db()
     yield
     # Shutdown
