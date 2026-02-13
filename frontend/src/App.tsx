@@ -61,7 +61,7 @@ function AppContent() {
   }
 
   const roles: string[] = (user as any)?.['https://staffingagent/roles'] ?? [];
-  const isSuperuser = roles.includes('superuser');
+  const isSuperuser = roles.includes('superuser') || roles.includes('staff');
   const isProjectManager = roles.includes('project_manager');
   const isCandidate = roles.includes('candidate');
 
