@@ -12,7 +12,7 @@ security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
 
 # Namespace for custom Auth0 claims (set via Auth0 Action)
-CLAIMS_NAMESPACE = "https://staffingagent/"
+CLAIMS_NAMESPACE = "https://aal.yookthi.ai/"
 
 # Permission constants
 PERM_MANAGE_USERS = "manage:users"

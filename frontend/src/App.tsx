@@ -60,7 +60,7 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  const roles: string[] = (user as any)?.['https://staffingagent/roles'] ?? [];
+  const roles: string[] = (user as any)?.['https://aal.yookthi.ai/roles'] ?? [];
   const isSuperuser = roles.includes('superuser') || roles.includes('staff');
   const isProjectManager = roles.includes('project_manager');
   const isCandidate = roles.includes('candidate');
