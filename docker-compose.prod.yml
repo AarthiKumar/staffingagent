@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: staffing-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-staffing}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/app/db/init_pgvector.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - staffing-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: staffing-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - staffing-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: staffing-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-staffing}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-originals}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_API_KEY: ${LLM_API_KEY}
+      ENABLE_LLM_RERANK: ${ENABLE_LLM_RERANK:-false}
+      ENABLE_NL_ASSIST: ${ENABLE_NL_ASSIST:-false}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      PROMETHEUS_PORT: 9001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    networks:
+      - staffing-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_AUTH0_DOMAIN: ${VITE_AUTH0_DOMAIN}
+        VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID}
+        VITE_AUTH0_AUDIENCE: ${VITE_AUTH0_AUDIENCE}
+    container_name: staffing-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - staffing-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: staffing-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - staffing-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: staffing-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://aal.yookthi.ai/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - staffing-network
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  staffing-network:
+    driver: bridge
