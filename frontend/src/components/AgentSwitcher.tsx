@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface AgentSwitcherProps {
   currentAgent: string;
   onAgentChange: (agentId: string) => void;

@@ -36,7 +36,7 @@ export function UploadCVAsync() {
   const [isDragging, setIsDragging] = useState(false);
   const [useOCR, setUseOCR] = useState(false);
   const [manualInput, setManualInput] = useState<ManualInputData | null>(null);
-  const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pollingIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // Cleanup polling intervals on unmount
   useEffect(() => {
