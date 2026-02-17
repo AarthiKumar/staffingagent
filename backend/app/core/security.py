@@ -57,6 +57,15 @@ def verify_token(token: str) -> dict:
         )
     jwks = _get_jwks()
     try:
+        # Decode without verification first to inspect claims for debugging
+        import logging
+        _logger = logging.getLogger(__name__)
+        unverified = jwt.get_unverified_claims(token)
+        _logger.warning(f"[AUTH DEBUG] Token aud claim: {unverified.get('aud')}")
+        _logger.warning(f"[AUTH DEBUG] Backend AUTH0_AUDIENCE: {settings.auth0_audience!r}")
+        _logger.warning(f"[AUTH DEBUG] Token iss claim: {unverified.get('iss')}")
+        _logger.warning(f"[AUTH DEBUG] Expected issuer: https://{settings.auth0_domain}/")
+
         payload = jwt.decode(
             token,
             jwks,
