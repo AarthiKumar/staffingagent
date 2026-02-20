@@ -48,7 +48,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AUTH0_CLIENT_ID", "VITE_AUTH0_CLIENT_ID"),
     )
 
+    cors_origins: str = Field(
+        default="http://localhost:5173,http://localhost:3000",
+        alias="CORS_ORIGINS",
+    )
+
     prometheus_port: int = Field(default=9001, alias="PROMETHEUS_PORT")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def is_dev(self) -> bool:
