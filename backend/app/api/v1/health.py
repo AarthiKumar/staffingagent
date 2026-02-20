@@ -1,6 +1,7 @@
 """Health check endpoints"""
 from fastapi import APIRouter, Depends
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
@@ -15,7 +16,7 @@ def health_check(db: Session = Depends(get_db)):
     """Health check endpoint"""
     # Test database connection
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "ok"
     except Exception as e:
         db_status = f"error: {str(e)}"
