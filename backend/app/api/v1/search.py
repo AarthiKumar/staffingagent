@@ -26,6 +26,7 @@ class SearchFilters(BaseModel):
     required_skills: Optional[List[str]] = None
     required_certs: Optional[List[str]] = None
     min_years: Optional[Dict[str, int]] = None
+    min_experience_years: Optional[float] = None
     location: Optional[str] = None
     availability_from: Optional[str] = None
     capacity_pct_min: Optional[int] = None
@@ -37,6 +38,7 @@ class SearchRequest(BaseModel):
     text: Optional[str] = None
     use_llm_rerank: bool = False
     top_k: int = 50
+    min_score: float = 0.8
 
 
 class AvailabilityInfo(BaseModel):
@@ -55,6 +57,7 @@ class SearchResultItem(BaseModel):
     name: str
     updated: str
     availability: Optional[AvailabilityInfo]
+    years_experience: Optional[float]
     score: float
     why: WhyInfo
 
@@ -108,6 +111,9 @@ def search_candidates(
         rerank_service = get_rerank_service(req.agent_id)
         results, reranked = rerank_service.rerank(results, req.text or "", filters_dict)
 
+    # Confidence score cut-off (default 80%)
+    results = [r for r in results if r.get("score", 0.0) >= req.min_score]
+
     # Build response
     response_results = []
     for result in results:
@@ -140,6 +146,7 @@ def search_candidates(
                 name=candidate.name,
                 updated=candidate.updated_at.isoformat(),
                 availability=avail_info,
+                years_experience=candidate.years_experience,
                 score=result["score"],
                 why=why_info,
             )

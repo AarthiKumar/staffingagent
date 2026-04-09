@@ -83,7 +83,11 @@ class CVDataValidator:
         r"\bconfidential\b",
 
         # Salary and compensation
-        r"\b\d+(?:,\d{3})*(?:\s+(?:usd|inr|eur|gbp|dollars?|rupees?))?\b",  # Amounts
+        # NOTE: Keep these patterns specific to compensation-like strings.
+        # Avoid bare-number matching so valid strings like "AWS Certified 2023"
+        # are not incorrectly rejected as personal data.
+        r"\b(?:usd|inr|eur|gbp)\s*\d+(?:,\d{3})*(?:\.\d+)?\b",  # USD 120000
+        r"\b\d+(?:,\d{3})+\s*(?:usd|inr|eur|gbp|dollars?|rupees?)\b",  # 120,000 USD
         r"\b(?:salary|compensation|ctc|package)\s*:?\s*\d",  # Salary with label
         r"\blpa\b",  # Lakhs per annum
         r"\b\d+\s*(?:lpa|lacs?|lakhs?)\b",  # Indian salary format

@@ -15,6 +15,7 @@ from app.models import Agent, Candidate, Document, Embedding, Section
 from app.services.cv_merge import get_cv_merge_service
 from app.services.document_conversion import conversion_service
 from app.services.embeddings import get_embeddings_service
+from app.services.experience import calculate_total_years_experience
 from app.services.normalize import get_normalize_service
 from app.services.parsing.parser_registry import parser_registry
 from app.services.parsing.resume_parser import ResumeParser
@@ -140,6 +141,7 @@ def ingest_document(
             email=parsed.get("email"),
             phone=parsed.get("phone"),
             location=parsed.get("location"),
+            years_experience=calculate_total_years_experience(parsed.get("experience", [])),
         )
         db.add(candidate)
         db.commit()
@@ -318,6 +320,7 @@ def ingest_document(
         email=parsed.get("email"),
         phone=parsed.get("phone"),
         location=parsed.get("location"),
+        years_experience=calculate_total_years_experience(parsed.get("experience", [])),
     )
     db.add(candidate)
     db.commit()

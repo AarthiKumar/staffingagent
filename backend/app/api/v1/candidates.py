@@ -25,6 +25,8 @@ class CandidateListItem(BaseModel):
     name: str
     email: Optional[str]
     location: Optional[str]
+    phone: Optional[str]
+    years_experience: Optional[float]
     updated_at: str
     document_filename: Optional[str]
     embeddings_count: int
@@ -65,7 +67,9 @@ class CandidateFullDetail(BaseModel):
     id: str
     name: str
     email: Optional[str]
+    phone: Optional[str]
     location: Optional[str]
+    years_experience: Optional[float]
     updated_at: str
     document_id: str
     document_filename: Optional[str]
@@ -80,6 +84,7 @@ class CandidateUpdate(BaseModel):
 
     name: Optional[str] = Field(None, max_length=255)
     email: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
     location: Optional[str] = Field(None, max_length=255)
 
 
@@ -133,7 +138,9 @@ def list_candidates(
                 id=str(candidate.id),
                 name=candidate.name,
                 email=candidate.email,
+                phone=candidate.phone,
                 location=candidate.location,
+                years_experience=candidate.years_experience,
                 updated_at=candidate.updated_at.isoformat(),
                 document_filename=candidate.document.filename if candidate.document else None,
                 embeddings_count=embeddings_count,
@@ -209,7 +216,9 @@ def get_candidate_full(
         id=str(candidate.id),
         name=candidate.name,
         email=candidate.email,
+        phone=candidate.phone,
         location=candidate.location,
+        years_experience=candidate.years_experience,
         updated_at=candidate.updated_at.isoformat(),
         document_id=str(candidate.document_id),
         document_filename=candidate.document.filename if candidate.document else None,
@@ -282,6 +291,7 @@ def update_candidate(
         "id": str(candidate.id),
         "name": candidate.name,
         "email": candidate.email,
+        "phone": candidate.phone,
         "location": candidate.location,
         "updated_at": candidate.updated_at.isoformat(),
     }

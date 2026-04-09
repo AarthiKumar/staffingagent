@@ -422,6 +422,9 @@ export function UploadCVAsync() {
             <Card className="w-full max-w-md">
               <CardHeader>
                 <CardTitle>Provide Missing Information</CardTitle>
+                <p className="text-sm text-gray-600">
+                  CV upload succeeded, but key profile fields were missing. Please provide the required details to complete candidate creation.
+                </p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

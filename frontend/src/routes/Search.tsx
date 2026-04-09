@@ -14,10 +14,11 @@ export function Search() {
   const [filters, setFilters] = useState<SearchFilters>({});
   const [queryText, setQueryText] = useState('');
   const [useLLMRerank, setUseLLMRerank] = useState(false);
+  const [minScore, setMinScore] = useState(0.8);
   const [searchTrigger, setSearchTrigger] = useState(0);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['search', filters, queryText, useLLMRerank, searchTrigger],
+    queryKey: ['search', filters, queryText, useLLMRerank, minScore, searchTrigger],
     queryFn: async () => {
       const request: SearchRequest = {
         agent_id: DEFAULT_AGENT_ID,
@@ -25,6 +26,7 @@ export function Search() {
         text: queryText || undefined,
         use_llm_rerank: useLLMRerank,
         top_k: 50,
+        min_score: minScore,
       };
       return apiClient.search(request);
     },
@@ -79,6 +81,19 @@ export function Search() {
                     className="rounded border-gray-300"
                   />
                   <span className="text-sm">Use LLM Re-ranking</span>
+                </label>
+
+                <label className="flex items-center space-x-2 text-sm">
+                  <span>Min score</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={minScore}
+                    onChange={(e) => setMinScore(Number(e.target.value) || 0.8)}
+                    className="w-20 rounded border border-gray-300 px-2 py-1"
+                  />
                 </label>
 
                 <Button onClick={handleSearch} disabled={isLoading}>

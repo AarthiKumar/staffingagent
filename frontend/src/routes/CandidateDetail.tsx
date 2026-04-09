@@ -13,6 +13,7 @@ import {
   X,
   User,
   Mail,
+  Phone,
   MapPin,
   FileText,
   Calendar,
@@ -28,6 +29,7 @@ export default function CandidateDetail() {
   const [editedData, setEditedData] = useState({
     name: '',
     email: '',
+    phone: '',
     location: '',
   });
   const [editingSections, setEditingSections] = useState<Record<string, string>>({});
@@ -41,7 +43,7 @@ export default function CandidateDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; email?: string; location?: string }) =>
+    mutationFn: (data: { name?: string; email?: string; phone?: string; location?: string }) =>
       apiClient.updateCandidate(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', id] });
@@ -78,6 +80,7 @@ export default function CandidateDetail() {
       setEditedData({
         name: candidate.name,
         email: candidate.email || '',
+        phone: candidate.phone || '',
         location: candidate.location || '',
       });
       setIsEditing(true);
@@ -85,13 +88,16 @@ export default function CandidateDetail() {
   };
 
   const handleSave = () => {
-    const updates: { name?: string; email?: string; location?: string } = {};
+    const updates: { name?: string; email?: string; phone?: string; location?: string } = {};
 
     if (editedData.name !== candidate?.name) {
       updates.name = editedData.name;
     }
     if (editedData.email !== (candidate?.email || '')) {
       updates.email = editedData.email || undefined;
+    }
+    if (editedData.phone !== (candidate?.phone || '')) {
+      updates.phone = editedData.phone || undefined;
     }
     if (editedData.location !== (candidate?.location || '')) {
       updates.location = editedData.location || undefined;
@@ -298,6 +304,27 @@ export default function CandidateDetail() {
 
               {/* Location */}
               <div>
+                <Label htmlFor="phone" className="flex items-center mb-2 text-sm font-medium text-gray-700">
+                  <Phone className="h-4 w-4 mr-2 text-blue-500" />
+                  Phone
+                </Label>
+                {isEditing ? (
+                  <Input
+                    id="phone"
+                    value={editedData.phone}
+                    onChange={(e) =>
+                      setEditedData({ ...editedData, phone: e.target.value })
+                    }
+                    placeholder="+1 (555) 123-4567"
+                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                ) : (
+                  <p className="text-gray-900">{candidate.phone || '-'}</p>
+                )}
+              </div>
+
+              {/* Location */}
+              <div>
                 <Label htmlFor="location" className="flex items-center mb-2 text-sm font-medium text-gray-700">
                   <MapPin className="h-4 w-4 mr-2 text-blue-500" />
                   Location
@@ -315,6 +342,17 @@ export default function CandidateDetail() {
                 ) : (
                   <p className="text-gray-900">{candidate.location || '-'}</p>
                 )}
+              </div>
+              <div>
+                <Label className="flex items-center mb-2 text-sm font-medium text-gray-700">
+                  <Briefcase className="h-4 w-4 mr-2 text-blue-500" />
+                  Years of Experience
+                </Label>
+                <p className="text-gray-900">
+                  {typeof candidate.years_experience === 'number'
+                    ? candidate.years_experience.toFixed(1)
+                    : '-'}
+                </p>
               </div>
             </div>
           </div>

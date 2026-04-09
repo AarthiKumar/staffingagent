@@ -26,6 +26,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
           <TableHead>Candidate</TableHead>
           <TableHead>Top Skills</TableHead>
           <TableHead>Availability</TableHead>
+          <TableHead>Years Exp</TableHead>
           <TableHead>Score</TableHead>
           <TableHead>Why</TableHead>
           <TableHead>Actions</TableHead>
@@ -55,6 +56,13 @@ export function ResultsTable({ results }: ResultsTableProps) {
                 </div>
               ) : (
                 <span className="text-gray-400">Not set</span>
+              )}
+            </TableCell>
+            <TableCell>
+              {typeof result.years_experience === 'number' ? (
+                <span className="font-medium">{result.years_experience.toFixed(1)}</span>
+              ) : (
+                <span className="text-gray-400">N/A</span>
               )}
             </TableCell>
             <TableCell>
