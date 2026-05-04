@@ -16,10 +16,21 @@ export default function Users() {
     role: 'candidate' as UserListItem['role'],
     candidate_id: '',
   });
+  const [newUser, setNewUser] = useState({
+    auth0_sub: '',
+    email: '',
+    name: '',
+    role: 'candidate' as UserListItem['role'],
+    candidate_id: '',
+  });
 
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ['users'],
     queryFn: () => apiClient.listUsers(),
+  });
+  const { data: candidateList } = useQuery({
+    queryKey: ['candidate-options'],
+    queryFn: () => apiClient.listCandidates(1, 200),
   });
 
   const updateUser = useMutation({
@@ -39,6 +50,26 @@ export default function Users() {
     mutationFn: (userId: string) => apiClient.deleteUser(userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
+  const createUser = useMutation({
+    mutationFn: () =>
+      apiClient.createUser({
+        auth0_sub: newUser.auth0_sub,
+        email: newUser.email,
+        name: newUser.name || undefined,
+        role: newUser.role,
+        candidate_id: newUser.candidate_id || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setNewUser({
+        auth0_sub: '',
+        email: '',
+        name: '',
+        role: 'candidate',
+        candidate_id: '',
+      });
+    },
+  });
 
   const startEdit = (user: UserListItem) => {
     setEditingId(user.id);
@@ -56,6 +87,42 @@ export default function Users() {
     <div className="container mx-auto px-6 py-8">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">User Management</h1>
       <p className="text-gray-500 mb-6">Manage superuser, project manager, and candidate access.</p>
+      <div className="rounded-lg border bg-white p-4 shadow-sm mb-6">
+        <h2 className="font-semibold mb-3">Create User</h2>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <Input placeholder="Auth0 Sub" value={newUser.auth0_sub} onChange={(e) => setNewUser((s) => ({ ...s, auth0_sub: e.target.value }))} />
+          <Input placeholder="Email" value={newUser.email} onChange={(e) => setNewUser((s) => ({ ...s, email: e.target.value }))} />
+          <Input placeholder="Name (optional)" value={newUser.name} onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))} />
+          <select
+            value={newUser.role}
+            onChange={(e) => setNewUser((s) => ({ ...s, role: e.target.value as UserListItem['role'] }))}
+            className="w-full rounded-md border border-gray-300 px-3 py-2"
+          >
+            {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+          </select>
+          <Button
+            onClick={() => createUser.mutate()}
+            disabled={!newUser.auth0_sub || !newUser.email}
+          >
+            Create
+          </Button>
+        </div>
+        <div className="mt-3">
+          <Label>Candidate Link (optional)</Label>
+          <select
+            value={newUser.candidate_id}
+            onChange={(e) => setNewUser((s) => ({ ...s, candidate_id: e.target.value }))}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 mt-1"
+          >
+            <option value="">No candidate link</option>
+            {(candidateList?.candidates || []).map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name} ({candidate.email || 'no-email'})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {users.map((user) => (
