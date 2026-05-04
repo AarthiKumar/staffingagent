@@ -26,6 +26,7 @@ class SearchFilters(BaseModel):
     required_skills: Optional[List[str]] = None
     required_certs: Optional[List[str]] = None
     min_years: Optional[Dict[str, int]] = None
+    min_experience_years: Optional[float] = None
     location: Optional[str] = None
     availability_from: Optional[str] = None
     capacity_pct_min: Optional[int] = None
@@ -37,6 +38,7 @@ class SearchRequest(BaseModel):
     text: Optional[str] = None
     use_llm_rerank: bool = False
     top_k: int = 50
+    min_score: float = 0.8
 
 
 class AvailabilityInfo(BaseModel):
@@ -55,6 +57,7 @@ class SearchResultItem(BaseModel):
     name: str
     updated: str
     availability: Optional[AvailabilityInfo]
+    years_experience: Optional[float]
     score: float
     why: WhyInfo
 
@@ -78,6 +81,8 @@ def search_candidates(
 
     # Convert filters to dict
     filters_dict = req.filters.model_dump(exclude_none=True)
+    filters_dict["required_skills"] = SearchService._normalize_csv_values(filters_dict.get("required_skills", []))
+    filters_dict["required_certs"] = SearchService._normalize_csv_values(filters_dict.get("required_certs", []))
 
     # Execute search
     search_service = SearchService(db, req.agent_id)
@@ -107,6 +112,18 @@ def search_candidates(
     if req.use_llm_rerank:
         rerank_service = get_rerank_service(req.agent_id)
         results, reranked = rerank_service.rerank(results, req.text or "", filters_dict)
+
+    # Defensive deduplication by candidate_id to prevent duplicate cards in UI.
+    unique_results = {}
+    for result in results:
+        candidate_id = result.get("candidate_id")
+        if candidate_id not in unique_results:
+            unique_results[candidate_id] = result
+    results = list(unique_results.values())
+
+    # Confidence score cut-off (enforced minimum 80%)
+    score_cutoff = max(0.8, req.min_score)
+    results = [r for r in results if r.get("score", 0.0) >= score_cutoff]
 
     # Build response
     response_results = []
@@ -140,6 +157,7 @@ def search_candidates(
                 name=candidate.name,
                 updated=candidate.updated_at.isoformat(),
                 availability=avail_info,
+                years_experience=candidate.years_experience,
                 score=result["score"],
                 why=why_info,
             )
