@@ -466,13 +466,9 @@ export function UploadCVAsync() {
                           size="sm"
                           className="mt-2"
                           onClick={() =>
-                            setMergeApproval({
-                              open: true,
-                              jobId: upload.jobId || '',
-                              documentId: upload.documentId || '',
-                              proposal: upload.mergeProposal,
-                              filename: upload.file.name,
-                            })
+                            alert(
+                              `Duplicate found for candidate: ${upload.mergeProposal?.existing_data?.name || 'Unknown'}.\nUse the synchronous upload merge approval flow to complete this merge.`
+                            )
                           }
                         >
                           Review Duplicate

@@ -113,17 +113,8 @@ def search_candidates(
         rerank_service = get_rerank_service(req.agent_id)
         results, reranked = rerank_service.rerank(results, req.text or "", filters_dict)
 
-    # Defensive deduplication by candidate_id to prevent duplicate cards in UI.
-    unique_results = {}
-    for result in results:
-        candidate_id = result.get("candidate_id")
-        if candidate_id not in unique_results:
-            unique_results[candidate_id] = result
-    results = list(unique_results.values())
-
-    # Confidence score cut-off (enforced minimum 80%)
-    score_cutoff = max(0.8, req.min_score)
-    results = [r for r in results if r.get("score", 0.0) >= score_cutoff]
+    # Confidence score cut-off (default 80%)
+    results = [r for r in results if r.get("score", 0.0) >= req.min_score]
 
     # Build response
     response_results = []

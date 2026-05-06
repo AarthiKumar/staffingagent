@@ -26,7 +26,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
           <TableHead>Candidate</TableHead>
           <TableHead>Top Skills</TableHead>
           <TableHead>Availability</TableHead>
-          <TableHead>Years of Experience</TableHead>
+          <TableHead>Years Exp</TableHead>
           <TableHead>Score</TableHead>
           <TableHead>Why</TableHead>
           <TableHead>Actions</TableHead>

@@ -22,14 +22,3 @@ def test_calculate_total_years_experience_with_present():
 def test_calculate_total_years_experience_with_invalid_values():
     exp = [{"start": None, "end": "2020"}, {"start": "n/a", "end": "n/a"}]
     assert calculate_total_years_experience(exp) is None
-
-
-def test_calculate_total_years_experience_does_not_double_count_overlaps():
-    exp = [
-        {"start": "2018", "end": "2020"},
-        {"start": "2019", "end": "2021"},  # overlaps with previous job
-    ]
-    years = calculate_total_years_experience(exp)
-    assert years is not None
-    # merged window from 2018..2021 ~= 4 years (not 6+)
-    assert 3.9 <= years <= 4.2

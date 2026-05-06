@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, date
 import re
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 
 _MONTH_PATTERNS = [
@@ -70,7 +70,7 @@ def _interval_months(start: date, end: date) -> float:
 
 def calculate_total_years_experience(experience_items: Iterable[Dict[str, Any]]) -> Optional[float]:
     """Calculate total years of experience from extracted experience items."""
-    intervals: List[Tuple[date, date]] = []
+    total_months = 0.0
 
     for item in experience_items or []:
         if not isinstance(item, dict):
@@ -81,54 +81,9 @@ def calculate_total_years_experience(experience_items: Iterable[Dict[str, Any]])
         if not start or end < start:
             continue
 
-        intervals.append((start, end))
-
-    if not intervals:
-        return None
-
-    merged = _merge_intervals(intervals)
-    total_months = sum(_interval_months(start, end) for start, end in merged)
+        total_months += _interval_months(start, end)
 
     if total_months <= 0:
         return None
 
     return round(total_months / 12.0, 2)
-
-
-def extract_experience_window(experience_items: Iterable[Dict[str, Any]]) -> Tuple[Optional[date], Optional[date]]:
-    """
-    Extract overall candidate experience window from parsed start/end dates.
-    Returns `(earliest_start, latest_end)`.
-    """
-    starts: List[date] = []
-    ends: List[date] = []
-
-    for item in experience_items or []:
-        if not isinstance(item, dict):
-            continue
-        start = _parse_date_value(item.get("start"))
-        end = _parse_date_value(item.get("end"), default_to_end_of_year=True) or datetime.utcnow().date()
-        if start and end and end >= start:
-            starts.append(start)
-            ends.append(end)
-
-    if not starts or not ends:
-        return None, None
-    return min(starts), max(ends)
-
-
-def _merge_intervals(intervals: List[Tuple[date, date]]) -> List[Tuple[date, date]]:
-    """Merge overlapping experience date intervals to avoid double-counting."""
-    if not intervals:
-        return []
-    ordered = sorted(intervals, key=lambda item: item[0])
-    merged: List[Tuple[date, date]] = [ordered[0]]
-
-    for current_start, current_end in ordered[1:]:
-        last_start, last_end = merged[-1]
-        if current_start <= last_end:
-            merged[-1] = (last_start, max(last_end, current_end))
-        else:
-            merged.append((current_start, current_end))
-
-    return merged

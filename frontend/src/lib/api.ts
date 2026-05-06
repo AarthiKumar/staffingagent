@@ -330,19 +330,6 @@ class APIClient {
     return this.request<UserListItem[]>('/users/');
   }
 
-  async createUser(data: {
-    auth0_sub: string;
-    email: string;
-    role?: 'superuser' | 'project_manager' | 'candidate';
-    candidate_id?: string | null;
-    name?: string;
-  }): Promise<UserListItem> {
-    return this.request<UserListItem>('/users/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
   async updateUser(
     userId: string,
     data: {

@@ -54,47 +54,48 @@ class SearchService:
         query = select(Candidate.id).join(Document).where(Document.agent_id == self.agent_id)
 
         # Required skills filter (via sections)
-        # Comma-separated values are treated as OR (match any provided skill).
         if normalized_skills:
-            skill_conditions = [
-                func.lower(Section.text).contains(skill.lower())
-                for skill in normalized_skills
-            ]
-            query = query.where(
-                Candidate.id.in_(
-                    select(Candidate.id)
-                    .join(Document)
-                    .join(Section)
-                    .where(
-                        and_(
-                            Document.agent_id == self.agent_id,
-                            or_(*skill_conditions),
+            for skill in normalized_skills:
+                skill_lower = skill.lower()
+                query = query.where(
+                    Candidate.id.in_(
+                        select(Candidate.id)
+                        .join(Document)
+                        .join(Section)
+                        .where(
+                            and_(
+                                Document.agent_id == self.agent_id,
+                                func.lower(Section.text).contains(skill_lower),
+                            )
                         )
                     )
                 )
             )
 
         # Required certifications filter
-        # Comma-separated values are treated as OR (match any provided cert).
         if normalized_certs:
-            cert_conditions = [
-                func.lower(Section.text).contains(cert.lower())
-                for cert in normalized_certs
-            ]
-            query = query.where(
-                Candidate.id.in_(
-                    select(Candidate.id)
-                    .join(Document)
-                    .join(Section)
-                    .where(
-                        and_(
-                            Document.agent_id == self.agent_id,
-                            Section.type == "certifications",
-                            or_(*cert_conditions),
+            for cert in normalized_certs:
+                cert_lower = cert.lower()
+                query = query.where(
+                    Candidate.id.in_(
+                        select(Candidate.id)
+                        .join(Document)
+                        .join(Section)
+                        .where(
+                            and_(
+                                Document.agent_id == self.agent_id,
+                                Section.type == "certifications",
+                                func.lower(Section.text).contains(cert_lower),
+                            )
                         )
                     )
                 )
             )
+
+        # Minimum years of experience filter
+        min_experience_years = filters.get("min_experience_years")
+        if min_experience_years is not None:
+            query = query.where(Candidate.years_experience >= float(min_experience_years))
 
         # Minimum years of experience filter
         min_experience_years = filters.get("min_experience_years")
