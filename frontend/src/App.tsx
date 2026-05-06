@@ -5,6 +5,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { Search } from './routes/Search';
 import CandidateDetail from './routes/CandidateDetail';
 import Candidates from './routes/Candidates';
+import Users from './routes/Users';
 import { Availability } from './routes/Availability';
 import { UploadCVAsync } from './routes/UploadCVAsync';
 import { AgentSwitcher } from './components/AgentSwitcher';
@@ -141,7 +142,7 @@ function AppContent() {
         {(isSuperuser || isProjectManager) && <Route path="/candidates/:id" element={<CandidateDetail />} />}
         {(isSuperuser || isCandidate) && <Route path="/upload" element={<UploadCVAsync />} />}
         {(isSuperuser || isProjectManager || isCandidate) && <Route path="/availability" element={<Availability />} />}
-        {isSuperuser && <Route path="/users" element={<UsersPage />} />}
+        {isSuperuser && <Route path="/users" element={<Users />} />}
         <Route path="/candidate/:id" element={<CandidateDetail />} />
         <Route
           path="*"
@@ -152,15 +153,6 @@ function AppContent() {
           }
         />
       </Routes>
-    </div>
-  );
-}
-
-function UsersPage() {
-  return (
-    <div className="container mx-auto px-6 py-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">User Management</h1>
-      <p className="text-gray-500">Manage user roles and candidate links.</p>
     </div>
   );
 }

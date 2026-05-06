@@ -58,6 +58,23 @@ export function FiltersPanel({ filters, onChange, onClear }: FiltersPanelProps) 
         </div>
 
         <div>
+          <Label htmlFor="min_experience_years">Minimum Years of Experience</Label>
+          <Input
+            id="min_experience_years"
+            type="number"
+            min="0"
+            step="0.5"
+            value={filters.min_experience_years ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filters,
+                min_experience_years: e.target.value ? parseFloat(e.target.value) : undefined,
+              })
+            }
+          />
+        </div>
+
+        <div>
           <Label htmlFor="availability">Available From (YYYY-MM-DD)</Label>
           <Input
             id="availability"

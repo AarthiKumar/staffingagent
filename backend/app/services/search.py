@@ -1,6 +1,7 @@
 """Search service with pgvector KNN and SQL filters"""
 from typing import Any, Dict, List, Optional
 from datetime import date
+from uuid import UUID
 
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm import Session
@@ -46,27 +47,33 @@ class SearchService:
 
     def _apply_filters(self, filters: Dict[str, Any]) -> List[str]:
         """Apply SQL filters and return matching candidate IDs"""
+        normalized_skills = self._normalize_csv_values(filters.get("required_skills", []))
+        normalized_certs = self._normalize_csv_values(filters.get("required_certs", []))
+
         # Build query for candidates
         query = select(Candidate.id).join(Document).where(Document.agent_id == self.agent_id)
 
         # Required skills filter (via sections)
-        required_skills = filters.get("required_skills", [])
-        if required_skills:
-            for skill in required_skills:
+        if normalized_skills:
+            for skill in normalized_skills:
                 skill_lower = skill.lower()
                 query = query.where(
                     Candidate.id.in_(
                         select(Candidate.id)
                         .join(Document)
                         .join(Section)
-                        .where(func.lower(Section.text).contains(skill_lower))
+                        .where(
+                            and_(
+                                Document.agent_id == self.agent_id,
+                                func.lower(Section.text).contains(skill_lower),
+                            )
+                        )
                     )
                 )
 
         # Required certifications filter
-        required_certs = filters.get("required_certs", [])
-        if required_certs:
-            for cert in required_certs:
+        if normalized_certs:
+            for cert in normalized_certs:
                 cert_lower = cert.lower()
                 query = query.where(
                     Candidate.id.in_(
@@ -75,12 +82,18 @@ class SearchService:
                         .join(Section)
                         .where(
                             and_(
+                                Document.agent_id == self.agent_id,
                                 Section.type == "certifications",
                                 func.lower(Section.text).contains(cert_lower),
                             )
                         )
                     )
                 )
+
+        # Minimum years of experience filter
+        min_experience_years = filters.get("min_experience_years")
+        if min_experience_years is not None:
+            query = query.where(Candidate.years_experience >= float(min_experience_years))
 
         # Location filter
         location = filters.get("location")
@@ -105,7 +118,15 @@ class SearchService:
 
         # Execute query
         result = self.db.execute(query).scalars().all()
-        return [str(cid) for cid in result]
+        unique_ids = []
+        seen = set()
+        for cid in result:
+            cid_str = str(cid)
+            if cid_str in seen:
+                continue
+            seen.add(cid_str)
+            unique_ids.append(cid_str)
+        return unique_ids
 
     def _semantic_search(
         self, query_text: str, candidate_ids: List[str], top_k: int
@@ -159,9 +180,11 @@ class SearchService:
 
     def _get_candidates_by_ids(self, candidate_ids: List[str]) -> List[Dict[str, Any]]:
         """Get candidates by IDs without semantic ranking"""
+        deduped_ids = list(dict.fromkeys(candidate_ids))
         output = []
-        for cid in candidate_ids:
-            candidate = self.db.query(Candidate).filter(Candidate.id == cid).first()
+        for cid in deduped_ids:
+            candidate_uuid = self._to_uuid(cid)
+            candidate = self.db.query(Candidate).filter(Candidate.id == (candidate_uuid or cid)).first()
             if candidate:
                 output.append({
                     "candidate_id": str(candidate.id),
@@ -173,7 +196,8 @@ class SearchService:
 
     def get_sections_for_candidate(self, candidate_id: str) -> List[Section]:
         """Get all sections for a candidate"""
-        candidate = self.db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        candidate_uuid = self._to_uuid(candidate_id)
+        candidate = self.db.query(Candidate).filter(Candidate.id == (candidate_uuid or candidate_id)).first()
         if not candidate:
             return []
 
@@ -184,3 +208,30 @@ class SearchService:
             .all()
         )
         return sections
+
+    @staticmethod
+    def _normalize_csv_values(values: Any) -> List[str]:
+        """Normalize list/string filter values and split comma-separated tokens."""
+        if values is None:
+            return []
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, list):
+            return []
+
+        normalized: List[str] = []
+        for value in values:
+            if value is None:
+                continue
+            for token in str(value).split(","):
+                cleaned = token.strip()
+                if cleaned:
+                    normalized.append(cleaned)
+        return list(dict.fromkeys(normalized))
+
+    @staticmethod
+    def _to_uuid(value: Any):
+        try:
+            return UUID(str(value))
+        except (ValueError, TypeError):
+            return None

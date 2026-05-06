@@ -2,6 +2,7 @@ export interface SearchFilters {
   required_skills?: string[];
   required_certs?: string[];
   min_years?: Record<string, number>;
+  min_experience_years?: number;
   location?: string;
   availability_from?: string;
   capacity_pct_min?: number;
@@ -13,6 +14,7 @@ export interface SearchRequest {
   text?: string;
   use_llm_rerank?: boolean;
   top_k?: number;
+  min_score?: number;
 }
 
 export interface AvailabilityInfo {
@@ -38,6 +40,7 @@ export interface SearchResult {
   name: string;
   updated: string;
   availability?: AvailabilityInfo;
+  years_experience?: number;
   score: number;
   why: WhyInfo;
 }
@@ -82,7 +85,9 @@ export interface CandidateListItem {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
   location?: string;
+  years_experience?: number;
   updated_at: string;
   document_filename?: string;
   embeddings_count: number;
@@ -115,7 +120,9 @@ export interface CandidateFullDetail {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
   location?: string;
+  years_experience?: number;
   updated_at: string;
   document_id: string;
   document_filename?: string;
@@ -128,5 +135,16 @@ export interface CandidateFullDetail {
 export interface CandidateUpdate {
   name?: string;
   email?: string;
+  phone?: string;
   location?: string;
+}
+
+export interface UserListItem {
+  id: string;
+  auth0_sub: string;
+  email: string;
+  name?: string;
+  role: 'superuser' | 'project_manager' | 'candidate';
+  candidate_id?: string;
+  created_at: string;
 }
