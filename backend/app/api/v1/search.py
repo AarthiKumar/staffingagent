@@ -81,6 +81,8 @@ def search_candidates(
 
     # Convert filters to dict
     filters_dict = req.filters.model_dump(exclude_none=True)
+    filters_dict["required_skills"] = SearchService._normalize_csv_values(filters_dict.get("required_skills", []))
+    filters_dict["required_certs"] = SearchService._normalize_csv_values(filters_dict.get("required_certs", []))
 
     # Execute search
     search_service = SearchService(db, req.agent_id)

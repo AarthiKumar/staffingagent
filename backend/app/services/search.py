@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -70,6 +70,7 @@ class SearchService:
                         )
                     )
                 )
+            )
 
         # Required certifications filter
         if normalized_certs:
@@ -89,6 +90,12 @@ class SearchService:
                         )
                     )
                 )
+            )
+
+        # Minimum years of experience filter
+        min_experience_years = filters.get("min_experience_years")
+        if min_experience_years is not None:
+            query = query.where(Candidate.years_experience >= float(min_experience_years))
 
         # Minimum years of experience filter
         min_experience_years = filters.get("min_experience_years")
@@ -189,7 +196,9 @@ class SearchService:
                 output.append({
                     "candidate_id": str(candidate.id),
                     "document_id": str(candidate.document_id),
-                    "cosine_similarity": 0.0,
+                    # Without semantic query text, treat filtered candidates as
+                    # baseline high-confidence matches for scoring purposes.
+                    "cosine_similarity": 1.0,
                     "candidate": candidate,
                 })
         return output

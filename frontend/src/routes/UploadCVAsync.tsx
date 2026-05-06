@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MergeApprovalDialog } from '@/components/MergeApprovalDialog';
 import { apiClient } from '@/lib/api';
 import { DEFAULT_AGENT_ID } from '@/lib/config';
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Upload, FileText } from 'lucide-react';
@@ -36,6 +37,13 @@ export function UploadCVAsync() {
   const [isDragging, setIsDragging] = useState(false);
   const [useOCR, setUseOCR] = useState(false);
   const [manualInput, setManualInput] = useState<ManualInputData | null>(null);
+  const [mergeApproval, setMergeApproval] = useState<{
+    open: boolean;
+    jobId: string;
+    documentId: string;
+    proposal: any;
+    filename: string;
+  } | null>(null);
   const pollingIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // Cleanup polling intervals on unmount
@@ -90,6 +98,9 @@ export function UploadCVAsync() {
 
           // Show notification for requires_input
           if (status.status === 'requires_input' && status.missing_fields) {
+            alert(
+              `Upload completed, but required candidate data is missing: ${status.missing_fields.join(', ')}. Please provide the missing information to continue.`
+            );
             // Show manual input form
             setManualInput({
               jobId,
@@ -242,6 +253,32 @@ export function UploadCVAsync() {
       }
     } catch (error: any) {
       alert(`Failed to submit: ${error.message}`);
+    }
+  };
+
+  const handleMergeApprove = async (mergedData: any) => {
+    if (!mergeApproval) return;
+    try {
+      const result = await apiClient.approveMerge(
+        mergeApproval.proposal.existing_candidate_id,
+        mergeApproval.documentId,
+        mergedData
+      );
+
+      setUploads((prev) =>
+        prev.map((job) => {
+          if (job.jobId !== mergeApproval.jobId) return job;
+          return {
+            ...job,
+            status: 'completed',
+            candidateId: result.candidate_id,
+            requiresApproval: false,
+          };
+        })
+      );
+      setMergeApproval(null);
+    } catch (error: any) {
+      alert(`Merge approval failed: ${error.message}`);
     }
   };
 
@@ -506,6 +543,15 @@ export function UploadCVAsync() {
               </CardContent>
             </Card>
           </div>
+        )}
+        {mergeApproval && (
+          <MergeApprovalDialog
+            open={mergeApproval.open}
+            onClose={() => setMergeApproval(null)}
+            onApprove={handleMergeApprove}
+            mergeProposal={mergeApproval.proposal}
+            filename={mergeApproval.filename}
+          />
         )}
       </div>
     </div>

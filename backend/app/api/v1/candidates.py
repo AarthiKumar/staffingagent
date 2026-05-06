@@ -249,7 +249,7 @@ def get_candidate_full(
 def update_candidate(
     candidate_id: str,
     update_data: CandidateUpdate,
-    _user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
+    user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
     db: Session = Depends(get_db),
 ):
     """Update candidate core information"""
@@ -272,6 +272,15 @@ def update_candidate(
     update_dict = update_data.model_dump(exclude_none=True)
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Phone edits are restricted to CV managers/superusers.
+    if "phone" in update_dict:
+        user_perms = set(user.get("permissions", []))
+        if PERM_MANAGE_CVS not in user_perms:
+            raise HTTPException(
+                status_code=403,
+                detail="Only super users/CV managers can edit phone information",
+            )
 
     for field, value in update_dict.items():
         setattr(candidate, field, value)
