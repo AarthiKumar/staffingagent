@@ -6,6 +6,7 @@ import {
   CandidateListResponse,
   CandidateFullDetail,
   CandidateUpdate,
+  UserListItem,
 } from './types';
 import { API_BASE_URL } from './config';
 
@@ -232,6 +233,7 @@ class APIClient {
     id: string;
     name: string;
     email?: string;
+    phone?: string;
     location?: string;
     updated_at: string;
   }> {
@@ -320,6 +322,44 @@ class APIClient {
     return this.request('/async/complete-upload', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // User management
+  async listUsers(): Promise<UserListItem[]> {
+    return this.request<UserListItem[]>('/users/');
+  }
+
+  async createUser(data: {
+    auth0_sub: string;
+    email: string;
+    role?: 'superuser' | 'project_manager' | 'candidate';
+    candidate_id?: string | null;
+    name?: string;
+  }): Promise<UserListItem> {
+    return this.request<UserListItem>('/users/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(
+    userId: string,
+    data: {
+      role?: 'superuser' | 'project_manager' | 'candidate';
+      candidate_id?: string | null;
+      name?: string;
+    }
+  ): Promise<UserListItem> {
+    return this.request<UserListItem>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(userId: string): Promise<{ deleted: boolean; id: string }> {
+    return this.request<{ deleted: boolean; id: string }>(`/users/${userId}`, {
+      method: 'DELETE',
     });
   }
 }

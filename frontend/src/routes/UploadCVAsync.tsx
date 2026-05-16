@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MergeApprovalDialog } from '@/components/MergeApprovalDialog';
 import { apiClient } from '@/lib/api';
 import { DEFAULT_AGENT_ID } from '@/lib/config';
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Upload, FileText } from 'lucide-react';
@@ -12,7 +13,7 @@ import { CheckCircle, XCircle, AlertTriangle, Loader2, Upload, FileText } from '
 interface UploadJob {
   file: File;
   jobId: string | null;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'requires_input';
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'requires_input' | 'approval_needed';
   progress: number;
   currentStep: string;
   candidateId?: string;
@@ -36,6 +37,13 @@ export function UploadCVAsync() {
   const [isDragging, setIsDragging] = useState(false);
   const [useOCR, setUseOCR] = useState(false);
   const [manualInput, setManualInput] = useState<ManualInputData | null>(null);
+  const [mergeApproval, setMergeApproval] = useState<{
+    open: boolean;
+    jobId: string;
+    documentId: string;
+    proposal: any;
+    filename: string;
+  } | null>(null);
   const pollingIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // Cleanup polling intervals on unmount
@@ -62,7 +70,10 @@ export function UploadCVAsync() {
 
           return {
             ...job,
-            status: status.status as any,
+            status:
+              status.status === 'completed' && status.requires_approval
+                ? 'approval_needed'
+                : (status.status as any),
             progress: status.progress,
             currentStep: status.current_step || '',
             candidateId: status.candidate_id || undefined,
@@ -75,7 +86,10 @@ export function UploadCVAsync() {
         }));
 
         // Stop polling if completed or failed or requires input
-        if (['completed', 'failed', 'requires_input'].includes(status.status)) {
+        if (
+          ['completed', 'failed', 'requires_input'].includes(status.status) ||
+          (status.status === 'completed' && status.requires_approval)
+        ) {
           const interval = pollingIntervals.current.get(jobId);
           if (interval) {
             clearInterval(interval);
@@ -84,6 +98,9 @@ export function UploadCVAsync() {
 
           // Show notification for requires_input
           if (status.status === 'requires_input' && status.missing_fields) {
+            alert(
+              `Upload completed, but required candidate data is missing: ${status.missing_fields.join(', ')}. Please provide the missing information to continue.`
+            );
             // Show manual input form
             setManualInput({
               jobId,
@@ -239,6 +256,32 @@ export function UploadCVAsync() {
     }
   };
 
+  const handleMergeApprove = async (mergedData: any) => {
+    if (!mergeApproval) return;
+    try {
+      const result = await apiClient.approveMerge(
+        mergeApproval.proposal.existing_candidate_id,
+        mergeApproval.documentId,
+        mergedData
+      );
+
+      setUploads((prev) =>
+        prev.map((job) => {
+          if (job.jobId !== mergeApproval.jobId) return job;
+          return {
+            ...job,
+            status: 'completed',
+            candidateId: result.candidate_id,
+            requiresApproval: false,
+          };
+        })
+      );
+      setMergeApproval(null);
+    } catch (error: any) {
+      alert(`Merge approval failed: ${error.message}`);
+    }
+  };
+
   const getStatusIcon = (status: UploadJob['status']) => {
     switch (status) {
       case 'queued':
@@ -250,6 +293,8 @@ export function UploadCVAsync() {
         return <XCircle className="h-5 w-5 text-red-600" />;
       case 'requires_input':
         return <AlertTriangle className="h-5 w-5 text-orange-600" />;
+      case 'approval_needed':
+        return <AlertTriangle className="h-5 w-5 text-indigo-600" />;
       default:
         return <FileText className="h-5 w-5 text-gray-600" />;
     }
@@ -263,6 +308,8 @@ export function UploadCVAsync() {
         return 'bg-red-100 text-red-800 border-red-300';
       case 'requires_input':
         return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'approval_needed':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       case 'processing':
       case 'queued':
         return 'bg-blue-100 text-blue-800 border-blue-300';
@@ -409,6 +456,29 @@ export function UploadCVAsync() {
                         </Button>
                       </div>
                     )}
+
+                    {/* Merge Approval Info */}
+                    {upload.status === 'approval_needed' && upload.mergeProposal && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium">Potential duplicate candidate detected.</p>
+                        <p className="text-sm">Review merge proposal to continue with this upload.</p>
+                        <Button
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            setMergeApproval({
+                              open: true,
+                              jobId: upload.jobId || '',
+                              documentId: upload.documentId || '',
+                              proposal: upload.mergeProposal,
+                              filename: upload.file.name,
+                            })
+                          }
+                        >
+                          Review Duplicate
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -422,6 +492,9 @@ export function UploadCVAsync() {
             <Card className="w-full max-w-md">
               <CardHeader>
                 <CardTitle>Provide Missing Information</CardTitle>
+                <p className="text-sm text-gray-600">
+                  CV upload succeeded, but key profile fields were missing. Please provide the required details to complete candidate creation.
+                </p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -474,6 +547,15 @@ export function UploadCVAsync() {
               </CardContent>
             </Card>
           </div>
+        )}
+        {mergeApproval && (
+          <MergeApprovalDialog
+            open={mergeApproval.open}
+            onClose={() => setMergeApproval(null)}
+            onApprove={handleMergeApprove}
+            mergeProposal={mergeApproval.proposal}
+            filename={mergeApproval.filename}
+          />
         )}
       </div>
     </div>

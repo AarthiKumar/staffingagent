@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import RequireSuperuser, PERM_MANAGE_USERS, require_permission
 from app.db.session import get_db
-from app.models import User
+from app.models import Candidate, User
 
 router = APIRouter()
 
@@ -26,6 +26,14 @@ class UserResponse(BaseModel):
 
 class UserUpdate(BaseModel):
     role: Optional[str] = None
+    candidate_id: Optional[str] = None
+    name: Optional[str] = None
+
+
+class UserCreate(BaseModel):
+    auth0_sub: str
+    email: str
+    role: str = "candidate"
     candidate_id: Optional[str] = None
     name: Optional[str] = None
 
@@ -71,11 +79,49 @@ def update_user(
         user.role = req.role
 
     if req.candidate_id is not None:
+        if req.candidate_id:
+            candidate = db.query(Candidate).filter(Candidate.id == req.candidate_id).first()
+            if not candidate:
+                raise HTTPException(status_code=400, detail="Candidate not found for candidate_id")
         user.candidate_id = req.candidate_id
 
     if req.name is not None:
         user.name = req.name
 
+    db.commit()
+    db.refresh(user)
+    return _to_response(user)
+
+
+@router.post("/", response_model=UserResponse)
+def create_user(
+    req: UserCreate,
+    _user: dict = Depends(require_permission(PERM_MANAGE_USERS)),
+    db: Session = Depends(get_db),
+):
+    """Create a new user mapping."""
+    if req.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {VALID_ROLES}")
+
+    existing = db.query(User).filter(User.auth0_sub == req.auth0_sub).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this auth0_sub already exists")
+
+    candidate_id = None
+    if req.candidate_id:
+        candidate = db.query(Candidate).filter(Candidate.id == req.candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=400, detail="Candidate not found for candidate_id")
+        candidate_id = req.candidate_id
+
+    user = User(
+        auth0_sub=req.auth0_sub.strip(),
+        email=req.email.strip().lower(),
+        role=req.role,
+        candidate_id=candidate_id,
+        name=req.name.strip() if req.name else None,
+    )
+    db.add(user)
     db.commit()
     db.refresh(user)
     return _to_response(user)

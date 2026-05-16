@@ -25,6 +25,8 @@ class CandidateListItem(BaseModel):
     name: str
     email: Optional[str]
     location: Optional[str]
+    phone: Optional[str]
+    years_experience: Optional[float]
     updated_at: str
     document_filename: Optional[str]
     embeddings_count: int
@@ -65,7 +67,9 @@ class CandidateFullDetail(BaseModel):
     id: str
     name: str
     email: Optional[str]
+    phone: Optional[str]
     location: Optional[str]
+    years_experience: Optional[float]
     updated_at: str
     document_id: str
     document_filename: Optional[str]
@@ -80,6 +84,7 @@ class CandidateUpdate(BaseModel):
 
     name: Optional[str] = Field(None, max_length=255)
     email: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
     location: Optional[str] = Field(None, max_length=255)
 
 
@@ -133,7 +138,9 @@ def list_candidates(
                 id=str(candidate.id),
                 name=candidate.name,
                 email=candidate.email,
+                phone=candidate.phone,
                 location=candidate.location,
+                years_experience=candidate.years_experience,
                 updated_at=candidate.updated_at.isoformat(),
                 document_filename=candidate.document.filename if candidate.document else None,
                 embeddings_count=embeddings_count,
@@ -209,7 +216,9 @@ def get_candidate_full(
         id=str(candidate.id),
         name=candidate.name,
         email=candidate.email,
+        phone=candidate.phone,
         location=candidate.location,
+        years_experience=candidate.years_experience,
         updated_at=candidate.updated_at.isoformat(),
         document_id=str(candidate.document_id),
         document_filename=candidate.document.filename if candidate.document else None,
@@ -240,7 +249,7 @@ def get_candidate_full(
 def update_candidate(
     candidate_id: str,
     update_data: CandidateUpdate,
-    _user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
+    user: dict = Depends(require_permission(PERM_MANAGE_CVS, PERM_EDIT_OWN_CV)),
     db: Session = Depends(get_db),
 ):
     """Update candidate core information"""
@@ -264,6 +273,15 @@ def update_candidate(
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # Phone edits are restricted to CV managers/superusers.
+    if "phone" in update_dict:
+        user_perms = set(user.get("permissions", []))
+        if PERM_MANAGE_CVS not in user_perms:
+            raise HTTPException(
+                status_code=403,
+                detail="Only super users/CV managers can edit phone information",
+            )
+
     for field, value in update_dict.items():
         setattr(candidate, field, value)
 
@@ -282,6 +300,7 @@ def update_candidate(
         "id": str(candidate.id),
         "name": candidate.name,
         "email": candidate.email,
+        "phone": candidate.phone,
         "location": candidate.location,
         "updated_at": candidate.updated_at.isoformat(),
     }
